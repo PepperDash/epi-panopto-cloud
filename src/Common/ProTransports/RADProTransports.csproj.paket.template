@@ -1,0 +1,9 @@
+type project
+id RADProTransports
+version 1.0
+authors Crestron Electronics
+description RADProTransports.dll for Rapid Agile Drivers SDK
+copyright Crestron Electronics 2017
+files ./bin/RADProTransports.dll ==> lib
+dependencies
+    RADCommon

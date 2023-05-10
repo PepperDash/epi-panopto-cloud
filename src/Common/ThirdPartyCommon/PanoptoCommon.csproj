@@ -1,0 +1,239 @@
+﻿<Project ToolsVersion="3.5" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>9.0.30729</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{2A9654F4-4393-4947-8831-4C38422B246B}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>PanoptoCommon</RootNamespace>
+    <AssemblyName>PanoptoCommon</AssemblyName>
+    <ProjectTypeGuids>{0B4745B0-194B-4BB6-8E21-E9057CA92500};{4D628B5B-2FBC-4AA6-8C16-197242AEB884};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <PlatformFamilyName>WindowsCE</PlatformFamilyName>
+    <PlatformID>E2BECB1F-8C8C-41ba-B736-9BE7D946A398</PlatformID>
+    <OSVersion>5.0</OSVersion>
+    <DeployDirSuffix>SmartDeviceProject1</DeployDirSuffix>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <NativePlatformName>Windows CE</NativePlatformName>
+    <FormFactorID>
+    </FormFactorID>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <AllowedReferenceRelatedFileExtensions>.allowedReferenceRelatedFileExtensions</AllowedReferenceRelatedFileExtensions>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>DEBUG;TRACE;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <FileAlignment>512</FileAlignment>
+    <NoStdLib>true</NoStdLib>
+    <NoConfig>true</NoConfig>
+    <GenerateSerializationAssemblies>off</GenerateSerializationAssemblies>
+    <DocumentationFile>bin\PanoptoCommon.xml</DocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <AllowedReferenceRelatedFileExtensions>.allowedReferenceRelatedFileExtensions</AllowedReferenceRelatedFileExtensions>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <FileAlignment>512</FileAlignment>
+    <NoStdLib>true</NoStdLib>
+    <NoConfig>true</NoConfig>
+    <GenerateSerializationAssemblies>off</GenerateSerializationAssemblies>
+    <DocumentationFile>bin\PanoptoCommon.xml</DocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="mscorlib" />
+    <Reference Include="Newtonsoft.Json.Compact, Version=4.0.8.0, Culture=neutral, PublicKeyToken=1099c178b3b54c3b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\ProgramData\Crestron\SDK\Newtonsoft.Json.Compact.dll</HintPath>
+    </Reference>
+    <Reference Include="SimplSharpCustomAttributesInterface, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1099c178b3b54c3b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\ProgramData\Crestron\SDK\SimplSharpCustomAttributesInterface.dll</HintPath>
+    </Reference>
+    <Reference Include="SimplSharpHelperInterface, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1099c178b3b54c3b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\ProgramData\Crestron\SDK\SimplSharpHelperInterface.dll</HintPath>
+    </Reference>
+    <Reference Include="SimplSharpReflectionInterface, Version=1.0.5583.25238, Culture=neutral, PublicKeyToken=1099c178b3b54c3b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\ProgramData\Crestron\SDK\SimplSharpReflectionInterface.dll</HintPath>
+    </Reference>
+    <Reference Include="SimplSharpTimerEventInterface, Version=1.0.6197.20052, Culture=neutral, PublicKeyToken=1099c178b3b54c3b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\ProgramData\Crestron\SDK\SimplSharpTimerEventInterface.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="system.data" />
+    <Reference Include="system.drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Attributes\DotfuscatorAttribute.cs" />
+    <Compile Include="Attributes\RelatesToTypeAttribute.cs" />
+    <Compile Include="BaseDriver\ABaseDriverProtocol.cs" />
+    <Compile Include="BaseDriver\ABaseDriver.cs" />
+    <Compile Include="BaseDriver\Converters\StandardCommandConverter.cs" />
+    <Compile Include="BaseDriver\Command Processing\SendableCommand.cs" />
+    <Compile Include="BaseDriver\DriverClock.cs" />
+    <Compile Include="Class\CustomState.cs" />
+    <Compile Include="ComponentInterfaces\IFeedbackInformation.cs" />
+    <Compile Include="ComponentInterfaces\IAuthentication3.cs" />
+    <Compile Include="ComponentInterfaces\IConnection3.cs" />
+    <Compile Include="Devices\Generic Device\ADevicePreset.cs" />
+    <Compile Include="Devices\Generic Device\DevicePropertyAvailableValue.cs" />
+    <Compile Include="Devices\Generic Device\ADeviceProperty.cs" />
+    <Compile Include="Class\DATFile\DatFileMultiPowerOff.cs" />
+    <Compile Include="Devices\Generic Device\Enums\DevicePropertyStates.cs" />
+    <Compile Include="Devices\Generic Device\EventsArgs\AuthenticationEventArgs.cs" />
+    <Compile Include="Devices\Generic Device\EventsArgs\DeviceSceneStateEventArgs.cs" />
+    <Compile Include="Devices\Generic Device\EventsArgs\DevicePresetStateEventArgs.cs" />
+    <Compile Include="Devices\Generic Device\EventsArgs\DevicePropertyStateEventArgs .cs" />
+    <Compile Include="Devices\Generic Device\Interfaces\IConfigurableDevice.cs" />
+    <Compile Include="Devices\Generic Device\Interfaces\IPresetController.cs" />
+    <Compile Include="Devices\Generic Device\Interfaces\IDeviceScene.cs" />
+    <Compile Include="Devices\Generic Device\Interfaces\IDevicePreset.cs" />
+    <Compile Include="Devices\Generic Device\Interfaces\IDevicePropertyAvailableValue.cs" />
+    <Compile Include="Devices\Generic Device\Enums\DevicePropertyUnit.cs" />
+    <Compile Include="Devices\Generic Device\Enums\DevicePropertyAttributes.cs" />
+    <Compile Include="Devices\Generic Device\Enums\DevicePropertyType.cs" />
+    <Compile Include="Devices\Generic Device\Enums\DevicePropertyRenderHint.cs" />
+    <Compile Include="Enums\ErrorState.cs" />
+    <Compile Include="Devices\Generic Device\EventsArgs\ValueEventArgs.cs" />
+    <Compile Include="Devices\Generic Device\EventsArgs\ListChangedEventArgs.cs" />
+    <Compile Include="Devices\Generic Device\EventsArgs\DevicePropertyEventArgs.cs" />
+    <Compile Include="Enums\StateSeverity.cs" />
+    <Compile Include="Enums\StateType.cs" />
+    <Compile Include="Helpers\OsFileHelper.cs" />
+    <Compile Include="BaseDriver\TimelineEventHandler.cs" />
+    <Compile Include="Class\Authentication2.cs" />
+    <Compile Include="Class\SupportedCommand.cs" />
+    <Compile Include="Class\SurroundProfile.cs" />
+    <Compile Include="Class\DATFile\DatACommunicationJsonConverter.cs" />
+    <Compile Include="BaseDriver\Authentication\AuthenticationJsonConverter.cs" />
+    <Compile Include="BaseDriver\Authentication\AuthenticationNode.cs" />
+    <Compile Include="BaseDriver\Authentication\NoAuthentication.cs" />
+    <Compile Include="BaseDriver\Authentication\UsernamePasswordAuthentication.cs" />
+    <Compile Include="Class\DATFile\ACommunication.cs" />
+    <Compile Include="Class\DATFile\DatFileFeature.cs" />
+    <Compile Include="Class\DATFile\DatFileInput.cs" />
+    <Compile Include="Class\DATFile\DatFileRootObject.cs" />
+    <Compile Include="BaseDriver\RootObject.cs" />
+    <Compile Include="BaseDriver\Command Processing\CommandBuilder.cs" />
+    <Compile Include="BaseDriver\Command Processing\SendLogic.cs" />
+    <Compile Include="BaseDriver\CommandSet.cs" />
+    <Compile Include="BaseDriver\SimplDriver.cs" />
+    <Compile Include="BaseDriver\ValidatedRxData.cs" />
+    <Compile Include="Class\AConnectionDetail.cs" />
+    <Compile Include="Class\Authentication.cs" />
+    <Compile Include="Class\CommandAckNak.cs" />
+    <Compile Include="Class\Communication.cs" />
+    <Compile Include="Class\CrestronDataStoreWrapper.cs" />
+    <Compile Include="Class\CustomCommand.cs" />
+    <Compile Include="Class\DataStructures.cs" />
+    <Compile Include="Class\DATFile\EmptyCommunication.cs" />
+    <Compile Include="Class\ExtensionMethods.cs" />
+    <Compile Include="Class\GeneralInformation.cs" />
+    <Compile Include="Class\MinHeap.cs" />
+    <Compile Include="Class\PowerWaitPeriod.cs" />
+    <Compile Include="Class\SerialDefaults.cs" />
+    <Compile Include="Class\UserAttribute.cs" />
+    <Compile Include="ComponentInterfaces\ICommandHelper.cs" />
+    <Compile Include="ComponentInterfaces\IBasicInformation2.cs" />
+    <Compile Include="ComponentInterfaces\IAuthentication.cs" />
+    <Compile Include="ComponentInterfaces\IAuthentication2.cs" />
+    <Compile Include="ComponentInterfaces\IConnection2.cs" />
+    <Compile Include="ComponentInterfaces\IRestable.cs" />
+    <Compile Include="BaseDriver\Authentication\AuthenticationTypes.cs" />
+    <Compile Include="Enums\AuthenticationStatusType.cs" />
+    <Compile Include="Enums\CommonSupportedCommandGroupType.cs" />
+    <Compile Include="Enums\CommunicationType.cs" />
+    <Compile Include="Enums\UserAttributeRequiredForConnectionType.cs" />
+    <Compile Include="Enums\SurroundModeType.cs" />
+    <Compile Include="Enums\UserAttributeDataType.cs" />
+    <Compile Include="Enums\UserAttributeType.cs" />
+    <Compile Include="Helpers\CommonFeatureSupportHelper.cs" />
+    <Compile Include="Enums\DeviceTypeEnum.cs" />
+    <Compile Include="ComponentInterfaces\IChannel.cs" />
+    <Compile Include="ComponentInterfaces\IConnection.cs" />
+    <Compile Include="ComponentInterfaces\ICustomCommand.cs" />
+    <Compile Include="ComponentInterfaces\IBasicInformation.cs" />
+    <Compile Include="ComponentInterfaces\IBasicLogger.cs" />
+    <Compile Include="Enums\AutoAnswerModes.cs" />
+    <Compile Include="Enums\CommandAction.cs" />
+    <Compile Include="Enums\CommonFeatureSupport.cs" />
+    <Compile Include="Enums\DisplayStateObjects.cs" />
+    <Compile Include="Enums\DownloadManagerErrorType.cs" />
+    <Compile Include="Enums\EndPointLocation.cs" />
+    <Compile Include="Enums\StringEncoding.cs" />
+    <Compile Include="Enums\EthernetProtocol.cs" />
+    <Compile Include="Enums\FeedbackSupportEnum.cs" />
+    <Compile Include="Enums\MessageType.cs" />
+    <Compile Include="Enums\PresetEvent.cs" />
+    <Compile Include="Enums\StandardCommandsEnum.cs" />
+    <Compile Include="Enums\TransportAdjustableProperties.cs" />
+    <Compile Include="Enums\TransportType.cs" />
+    <Compile Include="Enums\TransportTypes.cs" />
+    <Compile Include="Enums\VideoConnections.cs" />
+    <Compile Include="Enums\VideoConnectionTypes.cs" />
+    <Compile Include="Enums\VideoServerStateObjects.cs" />
+    <Compile Include="Helpers\Parameters.cs" />
+    <Compile Include="Helpers\SendCommandHelper.cs" />
+    <Compile Include="Helpers\UserAttributeHelper.cs" />
+    <Compile Include="Devices\Generic Device\Interfaces\ILocalizedDevice.cs" />
+    <Compile Include="Devices\Generic Device\Interfaces\IDeviceProperty.cs" />
+    <Compile Include="Devices\Generic Device\Interfaces\IDeviceWithProperties.cs" />
+    <Compile Include="Interfaces\IDataStore.cs" />
+    <Compile Include="Interfaces\IDeviceVersioning.cs" />
+    <Compile Include="Interfaces\IHttp.cs" />
+    <Compile Include="Interfaces\IObserver.cs" />
+    <Compile Include="Interfaces\IPanopto.cs" />
+    <Compile Include="Interfaces\ISubject.cs" />
+    <Compile Include="Interfaces\ITransportLogger.cs" />
+    <Compile Include="Interfaces\ISerial.cs" />
+    <Compile Include="Interfaces\ISimpl.cs" />
+    <Compile Include="Interfaces\ITcp.cs" />
+    <Compile Include="Logger\LoggingLevel.cs" />
+    <Compile Include="Logger\Logger.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="StandardCommands\StandardCommand.cs" />
+    <Compile Include="Enums\StandardFeedback.cs" />
+    <Compile Include="Transports\ATransportDriver.cs" />
+    <Compile Include="Transports\IR\DelayIrCommand.cs" />
+    <Compile Include="Transports\IR\IrFileReader.cs" />
+    <Compile Include="Transports\HttpsTransport.cs" />
+    <Compile Include="Transports\HttpTransport.cs" />
+    <Compile Include="Transports\DataObjects.cs" />
+    <Compile Include="Transports\IComport.cs" />
+    <Compile Include="Transports\IIrPort.cs" />
+    <Compile Include="Transports\IR\IrFunction.cs" />
+    <Compile Include="Transports\ISerialTransport.cs" />
+    <Compile Include="Interfaces\ITelnet.cs" />
+    <Compile Include="Transports\ITransport.cs" />
+    <Compile Include="Transports\RestTransport.cs" />
+    <Compile Include="Transports\SimplTransport.cs" />
+    <Compile Include="Transports\TcpSSLTransport.cs" />
+    <Compile Include="Transports\TcpTransport.cs" />
+    <Compile Include="Transports\TelnetTransport.cs" />
+    <None Include="Properties\ControlSystem.cfg" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CompactFramework.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>rem  S# preparation will execute after these operations
+rem Obfuscating dll prior to signing
+IF EXIST "C:\Program Files (x86)\PreEmptive Solutions\Dotfuscator Professional Edition 4.37.0\dotfuscator.exe" (
+"C:\Program Files (x86)\PreEmptive Solutions\Dotfuscator Professional Edition 4.37.0\dotfuscator.exe" "$(ProjectDir)DotfuscatorSettings.xml" &gt; NUL
+set errorlevel=0
+)</PostBuildEvent>
+  </PropertyGroup>
+  <ProjectExtensions>
+    <VisualStudio>
+    </VisualStudio>
+  </ProjectExtensions>
+</Project>

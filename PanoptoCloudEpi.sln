@@ -3,6 +3,10 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PanoptoCloudEpi", "src\PanoptoCloudEpi.csproj", "{29B51836-D58A-4C57-8305-CD3B6398A851}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PanoptoCommon", "src\Common\ThirdPartyCommon\PanoptoCommon.csproj", "{2A9654F4-4393-4947-8831-4C38422B246B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Panopto", "src\Driver\Panopto\Panopto\Panopto.csproj", "{85AA70C6-0C9F-4C6A-B134-F2777532ABDA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -13,6 +17,14 @@ Global
 		{29B51836-D58A-4C57-8305-CD3B6398A851}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{29B51836-D58A-4C57-8305-CD3B6398A851}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{29B51836-D58A-4C57-8305-CD3B6398A851}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A9654F4-4393-4947-8831-4C38422B246B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A9654F4-4393-4947-8831-4C38422B246B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A9654F4-4393-4947-8831-4C38422B246B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A9654F4-4393-4947-8831-4C38422B246B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{85AA70C6-0C9F-4C6A-B134-F2777532ABDA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{85AA70C6-0C9F-4C6A-B134-F2777532ABDA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{85AA70C6-0C9F-4C6A-B134-F2777532ABDA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{85AA70C6-0C9F-4C6A-B134-F2777532ABDA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

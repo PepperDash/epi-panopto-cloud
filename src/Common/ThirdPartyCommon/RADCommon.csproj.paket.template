@@ -1,0 +1,7 @@
+type project
+id RADCommon
+version 1.0
+authors Crestron Electronics
+description RADCommon.dll for Rapid Agile Drivers SDK
+copyright Crestron Electronics 2017
+files ./bin/RADCommon.dll ==> lib

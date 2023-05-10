@@ -13,6 +13,8 @@ using PepperDash.Essentials.Core.Bridges;
 using PepperDash.Essentials.Core.Config;
 using PepperDash.Essentials.Core.Devices;
 using RequestType = Crestron.SimplSharp.Net.Https.RequestType;
+using Crestron.Panopto;
+using Crestron.Panopto.Common;
 
 namespace PanoptoCloudEpi
 {
@@ -21,6 +23,8 @@ namespace PanoptoCloudEpi
         private readonly string _url;
         private readonly string _username;
         private readonly string _password;
+        private readonly string _recorderName;
+        private readonly string _ipAddress;
         private readonly CTimer _oauthTimer;
         private readonly CTimer _pollTimer;
         private readonly CTimer _recordingTimer;
@@ -49,6 +53,8 @@ namespace PanoptoCloudEpi
         public readonly StringFeedback CurrentRecordingMinutesRemaining;
         public readonly IntFeedback DefaultLength;
         public readonly BoolFeedback NextRecordingExists;
+
+        public Driver _panoptoSoapDriver;
 
         static PanoptoCloudController()
         {
@@ -101,6 +107,11 @@ namespace PanoptoCloudEpi
                 }, "PANOPTOSECRET", "Format: [Device_Key]:[Client_Secret]", ConsoleAccessLevelEnum.AccessAdministrator);
         }
 
+        public static string XmlEscape(string message)
+        {
+            return message.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+        }
+
         public PanoptoCloudController(DeviceConfig config)
             : base(config)
         {
@@ -108,6 +119,9 @@ namespace PanoptoCloudEpi
             _url = props.Url;
             _username = props.Username;
             _password = props.Password;
+            _recorderName = props.RecorderName;
+            _ipAddress = props.IpAddress;
+
 
             _oauthTimer = new CTimer(o => _token = String.Empty, Timeout.Infinite);
             _pollTimer = new CTimer(o => PollRecorder(), Timeout.Infinite);
@@ -148,6 +162,13 @@ namespace PanoptoCloudEpi
             RecorderStatusString.OutputChange +=
                 (sender, args) => Debug.Console(1, this, "Recorder Status:{0}", args.StringValue);
 
+
+
+            return base.CustomActivate();
+        }
+
+        private void UpdateFeedbacks()
+        {
             IsRecording.FireUpdate();
             IsPaused.FireUpdate();
             RecorderStatusInt.FireUpdate();
@@ -158,8 +179,17 @@ namespace PanoptoCloudEpi
             CurrentRecordingName.FireUpdate();
             DefaultLength.FireUpdate();
             NameFeedback.FireUpdate();
+        }
 
-            return base.CustomActivate();
+
+        private void SetupSoapDriver()
+        {
+            _panoptoSoapDriver = new Driver();
+            _panoptoSoapDriver.DiagnosticLoggingEnabled = true;
+
+            string escapedRemoteRecorderName = XmlEscape(_recorderName.ToString());
+
+            _panoptoSoapDriver.Configure(_url, _username, _password, escapedRemoteRecorderName, _ipAddress, string.Empty, true, Crestron.Panopto.Common.Interfaces.DisplayMessageEnum.LoggingIn);
         }
 
         public void SetClientId(string clientId)
@@ -201,6 +231,7 @@ namespace PanoptoCloudEpi
         public override void Initialize()
         {
             _pollTimer.Reset(500, 5000);
+            SetupSoapDriver();
         }
 
         public bool CheckTokenAndUpdate()
@@ -381,12 +412,86 @@ namespace PanoptoCloudEpi
 
         public void PauseRecording()
         {
-            throw new NotImplementedException();
+            _panoptoSoapDriver.Pause();
+
+            //if (_recorder.Id.Equals(Guid.Empty) && !PollRecorder())
+            //    return;
+
+            //if (_currentRecordingId == Guid.Empty)
+            //{
+            //    Debug.Console(1, this, "Cannot pause recording, current recording id is not set");
+            //    return;
+            //}
+
+            //const string path = "{0}/Panopto/api/v1/remoteRecorderAPI/session/{1}/pause";
+            //var url = String.Format(path, _url, _currentRecordingId);
+
+            //var body = new
+            //{
+            //    PauseRecordingTime = 0,
+            //};
+
+            //var request = GetDefaultRequestWithAuthHeaders(url, _token, RequestType.Post);
+
+            //request.ContentString = JsonConvert.SerializeObject(body);
+            //request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
+
+
+            //Debug.Console(1, this, "Attempting to pause recording:{0}\r{1}", request.Url.Url, request.ContentString);
+            //using (var client = new HttpsClient().WithDefaultSettings())
+            //{
+            //    try
+            //    {
+            //        var result = client.Dispatch(request);
+            //        ProcessCurrentRecording(result);
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        Debug.Console(1, this, "Error pausing recording {0}", ex.Message);
+            //    }
+            //}
         }
 
         public void ResumeRecording()
         {
-            throw new NotImplementedException();
+            _panoptoSoapDriver.Resume();
+
+            //if (_recorder.Id.Equals(Guid.Empty) && !PollRecorder())
+            //    return;
+
+            //if (_currentRecordingId == Guid.Empty)
+            //{
+            //    Debug.Console(1, this, "Cannot resume recording, current recording id is not set");
+            //    return;
+            //}
+
+            //const string path = "{0}/Panopto/api/v1/remoteRecorderAPI/session/{1}/resume";
+            //var url = String.Format(path, _url, _currentRecordingId);
+
+            //var body = new
+            //{
+            //    ResumeRecordingTime = 0,
+            //};
+
+            //var request = GetDefaultRequestWithAuthHeaders(url, _token, RequestType.Post);
+
+            //request.ContentString = JsonConvert.SerializeObject(body);
+            //request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
+
+
+            //Debug.Console(1, this, "Attempting to resume recording:{0}\r{1}", request.Url.Url, request.ContentString);
+            //using (var client = new HttpsClient().WithDefaultSettings())
+            //{
+            //    try
+            //    {
+            //        var result = client.Dispatch(request);
+            //        ProcessCurrentRecording(result);
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        Debug.Console(1, this, "Error resuming recording {0}", ex.Message);
+            //    }
+            //}
         }
 
         public void ExtendRecording()
@@ -584,17 +689,34 @@ namespace PanoptoCloudEpi
             CurrentRecordingEndTime.LinkInputSig(trilist.StringInput[joinMap.CurrentRecordingEndTime.JoinNumber]);
             CurrentRecordingLength.LinkInputSig(trilist.StringInput[joinMap.CurrentRecordingLength.JoinNumber]);
             CurrentRecordingMinutesRemaining.LinkInputSig(trilist.StringInput[joinMap.CurrentRecordingMinutesRemaining.JoinNumber]);
+
+            UpdateFeedbacks();
+
+            trilist.OnlineStatusChange += (o, a) =>
+                {
+                    if (a.DeviceOnLine)
+                    {
+                        UpdateFeedbacks();
+                    }
+                };
         }
 
         public StatusMonitorBase CommunicationMonitor { get { return _monitor; } }
 
         public class PanoptoCloudControllerProperties 
         {
+            [JsonProperty("url")]
             public string Url { get; set; }
+            [JsonProperty("username")]
             public string Username { get; set; }
+            [JsonProperty("password")]
             public string Password { get; set; }
             public string ClientId { get; set; }
             public string ClientSecret { get; set; }
+            [JsonProperty("recorderName")]
+            public string RecorderName { get; set; }
+            [JsonProperty("ipAddress")]
+            public string IpAddress { get; set; }
         }
     }
 }
