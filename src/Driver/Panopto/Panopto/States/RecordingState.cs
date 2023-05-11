@@ -193,7 +193,7 @@ namespace Crestron.Panopto
             {
                 PanoptoLogger.Notice("sesionData.PublicID is '{0}'", sessionData.SessionPublicID);
                 P.RecordingConfig.PublicSessionId = new Guid(sessionData.SessionPublicID);
-                P.API.Pause(P, CommandType.Poll, this);
+                P.API.Pause(P, CommandType.Control, this);
                 command.Ready = true;
             }
             else

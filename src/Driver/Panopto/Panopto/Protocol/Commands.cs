@@ -14,9 +14,12 @@ namespace Crestron.Panopto
 {
     public class Commands
     {
-        private string _authUrlSuffix = "/PublicAPI/4.2/Auth.svc";
-        private string _remoteRecorderManagementUrlSuffix = "/PublicAPI/4.2/RemoteRecorderManagement.svc";
-        private string _sessionManagementUrlSuffix = "/PublicAPI/4.2/SessionManagement.svc";
+        private string _authUrlSuffix = "/Panopto/PublicAPI/4.2/Auth.svc?wsdl";
+        //private string _authUrlSuffix = "/Panopto/PublicAPISSL/4.0/Auth.svc";
+        private string _remoteRecorderManagementUrlSuffix = "/panopto/publicapi/4.2/remoterecordermanagement.svc";
+        //private string _remoteRecorderManagementUrlSuffix = "/Panopto/PublicAPISSL/4.0/RemoteRecorderManagement.svc";
+        private string _sessionManagementUrlSuffix = "/Panopto/PublicAPI/4.2/SessionManagement.svc";
+        //private string _sessionManagementUrlSuffix = "Panopto/PublicAPISSL/4.0/SessionManagement.svc";
 
         public void LogOnWithPassword(Panopto.Driver p, string userName, string password, string url, CommandType type, PanoptoState state)
         {

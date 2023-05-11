@@ -287,7 +287,6 @@ namespace PanoptoCloudEpi
             NameFeedback.FireUpdate();
             PollRecorder();
         }
-
         public void IncrementDefaultLength(ushort inc)
         {
             _defaultLength += inc;
