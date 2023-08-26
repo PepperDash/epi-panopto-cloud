@@ -260,18 +260,31 @@ namespace PanoptoCloudEpi
         public void IncrementDefaultLength(ushort inc)
         {
             _defaultLength += inc;
+            if (_defaultLength < 15)
+            {
+                _defaultLength = 15;
+            }
             DefaultLength.FireUpdate();
         }
 
         public void DecrementDefaultLength(ushort dec)
         {
             _defaultLength -= dec;
+            if (_defaultLength < 15)
+            {
+                _defaultLength = 15;
+            }
             DefaultLength.FireUpdate();
         }
 
         public void SetDefaultLength(ushort value)
         {
+
             _defaultLength = value;
+            if (_defaultLength < 15)
+            {
+                _defaultLength = 15;
+            }
             DefaultLength.FireUpdate();
         }
 
