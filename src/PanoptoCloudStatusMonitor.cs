@@ -6,6 +6,7 @@ namespace PanoptoCloudEpi
     public class PanoptoCloudStatusMonitor : StatusMonitorBase
     {
         private bool _isStarted;
+        public bool _isOnline;
 
         public PanoptoCloudStatusMonitor(IKeyed parent, long warningTime, long errorTime) : base(parent, warningTime, errorTime)
         {
@@ -23,10 +24,14 @@ namespace PanoptoCloudEpi
             StopErrorTimers();
         }
 
-        public void SetOnlineStatue(bool isOnline)
+        public void SetOnlineStatus(bool isOnline)
         {
+            _isOnline = isOnline;
+
             if (isOnline)
+            {
                 Status = MonitorStatus.IsOk;
+            }
 
             UpdateTimers();
         }

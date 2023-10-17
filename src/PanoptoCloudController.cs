@@ -24,6 +24,7 @@ namespace PanoptoCloudEpi
         private readonly CTimer _oauthTimer;
         private readonly CTimer _pollTimer;
         private readonly CTimer _recordingTimer;
+
         private readonly PanoptoCloudStatusMonitor _monitor;
 
         private string _token;
@@ -40,6 +41,7 @@ namespace PanoptoCloudEpi
 
         public readonly BoolFeedback IsRecording;
         public readonly BoolFeedback IsPaused;
+        public readonly BoolFeedback IsOnline;
         public readonly StringFeedback NameFeedback;
         public readonly StringFeedback CurrentRecordingId;
         public readonly StringFeedback CurrentRecordingName;
@@ -128,6 +130,7 @@ namespace PanoptoCloudEpi
             DefaultLength = new IntFeedback(() => _defaultLength);
             NextRecordingExists = new BoolFeedback(() => false); // TODO [] implement next recording logic
             NameFeedback = new StringFeedback(() => Name);
+            IsOnline = new BoolFeedback(() => _monitor._isOnline);
         }
 
         public override bool CustomActivate()
@@ -520,7 +523,7 @@ namespace PanoptoCloudEpi
             CurrentRecordingId.FireUpdate();
         }
 
-        public static RecoderInfo GetRecorder(string name, string url, string token)
+        public RecoderInfo GetRecorder(string name, string url, string token)
         {
             var defaultRecorderInfo = new RecoderInfo();
             if (String.IsNullOrEmpty(name) || String.IsNullOrEmpty(token))
@@ -536,6 +539,19 @@ namespace PanoptoCloudEpi
                 {
                     var request = GetDefaultRequestWithAuthHeaders(fullUrl, token, RequestType.Get);
                     var response = client.Dispatch(request);
+
+                    if (response != null)
+                    {
+                        var responseCode = response.Code;
+
+                        _monitor.SetOnlineStatus(responseCode == 200 && responseCode != 401);
+
+                    }
+                    else
+                    {
+                        _monitor.SetOnlineStatus(false);
+                    }
+
                     return ParseRecordingInfo(name, response);
                 }
                 catch (Exception ex)
@@ -585,7 +601,7 @@ namespace PanoptoCloudEpi
             trilist.SetUShortSigAction(joinMap.DefaultRecordingLength.JoinNumber, SetDefaultLength);
             trilist.SetStringSigAction(joinMap.RecorderName.JoinNumber, SetDeviceName);
 
-            CommunicationMonitor.IsOnlineFeedback.LinkInputSig(trilist.BooleanInput[joinMap.RecorderOnline.JoinNumber]);
+            IsOnline.LinkInputSig(trilist.BooleanInput[joinMap.RecorderOnline.JoinNumber]);
             IsRecording.LinkInputSig(trilist.BooleanInput[joinMap.IsRecording.JoinNumber]);
             IsPaused.LinkInputSig(trilist.BooleanInput[joinMap.IsPaused.JoinNumber]);
             NextRecordingExists.LinkInputSig(trilist.BooleanInput[joinMap.NextRecordingExists.JoinNumber]);
