@@ -152,7 +152,8 @@ namespace PanoptoCloudEpi
                 (sender, args) => Debug.Console(1, this, "Recorder Status:{0}", args.StringValue);
 
             IsRecording.FireUpdate();
-            IsPaused.FireUpdate();
+            IsPaused.FireUpdate(); ;
+            IsOnline.FireUpdate();
             RecorderStatusInt.FireUpdate();
             RecorderStatusString.FireUpdate();
             CurrentRecordingId.FireUpdate();
@@ -551,7 +552,7 @@ namespace PanoptoCloudEpi
                     {
                         _monitor.SetOnlineStatus(false);
                     }
-
+                    IsOnline.FireUpdate();
                     return ParseRecordingInfo(name, response);
                 }
                 catch (Exception ex)
