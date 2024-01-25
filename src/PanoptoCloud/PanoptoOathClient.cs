@@ -3,9 +3,9 @@ using System.Text;
 using Crestron.SimplSharp.Net.Https;
 using Newtonsoft.Json;
 
-namespace PanoptoCloudEpi
+namespace PepperDash.Essentials.PanoptoCloud
 {
-    public static class PanoptoOathClient
+    public static class PanoptoOauthClient
     {
         public static TokenResponse GetToken(string url, string username, string password, string clientId, string clientPassword)
         {

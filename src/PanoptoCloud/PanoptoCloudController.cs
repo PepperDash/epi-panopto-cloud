@@ -14,7 +14,7 @@ using PepperDash.Essentials.Core.Config;
 using PepperDash.Essentials.Core.Devices;
 using RequestType = Crestron.SimplSharp.Net.Https.RequestType;
 
-namespace PanoptoCloudEpi
+namespace PepperDash.Essentials.PanoptoCloud
 {
     public class PanoptoCloudController : ReconfigurableBridgableDevice, ICommunicationMonitor
     {
@@ -112,25 +112,40 @@ namespace PanoptoCloudEpi
             _password = props.Password;
 
             _oauthTimer = new CTimer(o => _token = String.Empty, Timeout.Infinite);
+
             _pollTimer = new CTimer(o => PollRecorder(), Timeout.Infinite);
+
             _recordingTimer = new CTimer(o => PollCurrentRecording(), Timeout.Infinite);
 
             _monitor = new PanoptoCloudStatusMonitor(this, 30000, 60000);
 
             IsRecording = new BoolFeedback(() => _recorder != null && (_recorder.State == RemoteRecorderState.Recording || _recorder.State == RemoteRecorderState.Paused));
+
             IsPaused = new BoolFeedback(() => _recorder != null && (_recorder.State == RemoteRecorderState.Paused));
+
             RecorderStatusInt = new IntFeedback(() => _recorder == null ? (int)RemoteRecorderState.Unknown : (int)_recorder.State);
+
             RecorderStatusString = new StringFeedback(() =>_recorder == null ? RemoteRecorderState.Unknown.ToString() : _recorder.State.ToString());
+
             CurrentRecordingStartTime = new StringFeedback(() => _currentRecordingId != Guid.Empty ? _currentRecordingStartTime.ToString("G") : String.Empty);
+
             CurrentRecordingEndTime = new StringFeedback(() => _currentRecordingId != Guid.Empty ? _currentRecordingEndTime.ToString("G") : String.Empty);
+
             CurrentRecordingName = new StringFeedback(() => _currentRecordingName);
+
             CurrentRecordingId = new StringFeedback(() => _currentRecordingId != Guid.Empty ? _currentRecordingId.ToString("D") : String.Empty);
+
             CurrentRecordingLength = new StringFeedback(() => _currentRecordingId.CurrentRecordingLength(_currentRecordingStartTime, _currentRecordingEndTime));
+
             CurrentRecordingMinutesRemaining = new StringFeedback(() => _currentRecordingId.CurrentRecordingTimeRemaining(_currentRecordingEndTime));
+
             DefaultLength = new IntFeedback(() => _defaultLength);
+
             NextRecordingExists = new BoolFeedback(() => false); // TODO [] implement next recording logic
+
             NameFeedback = new StringFeedback(() => Name);
-            IsOnline = new BoolFeedback(() => _monitor._isOnline);
+
+            IsOnline = new BoolFeedback(() => _monitor.IsOnline);
         }
 
         public override bool CustomActivate()
@@ -233,7 +248,7 @@ namespace PanoptoCloudEpi
                 }
 
                 Debug.Console(1, this, "Getting token...");
-                var token = PanoptoOathClient.GetToken(url, _username, _password, clientId, clientSecret);
+                var token = PanoptoOauthClient.GetToken(url, _username, _password, clientId, clientSecret);
                 _token = token.AccessToken;
 
                 var expireTime = token.ExpiresIn * 1000 - 500;

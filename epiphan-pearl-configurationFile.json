@@ -1,0 +1,63 @@
+{
+  "system": {},
+  "system_url": "",
+  "template": {
+    "devices": [
+      {
+        "key": "processor",
+        "type": "pro3",
+        "name": "processor",
+        "group": "processor",
+        "uid": 0,
+        "supportedConfigModes": ["compliance", "essentials"],
+        "supportedSystemTypes": ["hudType", "presType", "vtcType", "custom"],
+        "supportsCompliance": true,
+        "properties": {
+          "numberOfComPorts": 6,
+          "numberOfIrPorts": 8,
+          "numberOfRelays": 8,
+          "numberOfDIOPorts": 8
+        }
+      },
+      {
+        "key": "recorder",
+        "uid": 6,
+        "name": "recorder",
+        "type": "epiphanpearl2",
+        "group": "recorders",
+        "properties": {
+          "host": "10.11.50.123",
+          "username": "admin",
+          "password": "pepperdash2k!",
+          "secure": false          
+        }
+      },
+      {
+        "key": "bridge",
+        "name": "bridge",
+        "type": "eiscapiadvanced",
+        "group": "bridges",
+        "properties": {
+          "control": {
+            "tcpSshProperties": {
+                "address": "127.0.0.2",
+                "port": 0
+            },
+            "ipid": "3",
+            "method": "ipidTcp"
+        },
+        "devices": [
+            {
+                "deviceKey": "recorder",
+                "deviceKey.comment": "This is the key of the FlexButtons device that you want to use.  Leave this alone.",
+                "joinStart": 1
+            }
+        ]
+        }
+      }
+    ],
+    "info": {},
+    "rooms": [],
+    "tieLines": []
+  }
+}

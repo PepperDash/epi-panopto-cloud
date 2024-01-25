@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using Crestron.SimplSharp;
 
-namespace PanoptoCloudEpi
+namespace PepperDash.Essentials.PanoptoCloud
 {
     public class RecorderScheduleEntry
     {

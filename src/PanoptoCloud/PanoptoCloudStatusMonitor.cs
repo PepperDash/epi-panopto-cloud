@@ -1,12 +1,11 @@
 ﻿using PepperDash.Core;
 using PepperDash.Essentials.Core;
 
-namespace PanoptoCloudEpi
+namespace PepperDash.Essentials.PanoptoCloud
 {
     public class PanoptoCloudStatusMonitor : StatusMonitorBase
     {
         private bool _isStarted;
-        public bool _isOnline;
 
         public PanoptoCloudStatusMonitor(IKeyed parent, long warningTime, long errorTime) : base(parent, warningTime, errorTime)
         {
@@ -26,9 +25,9 @@ namespace PanoptoCloudEpi
 
         public void SetOnlineStatus(bool isOnline)
         {
-            _isOnline = isOnline;
+            IsOnline = isOnline;
 
-            if (isOnline)
+            if (IsOnline)
             {
                 Status = MonitorStatus.IsOk;
             }
