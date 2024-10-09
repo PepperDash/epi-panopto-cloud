@@ -26,11 +26,11 @@
         "type": "PanoptoCloud",
         "group": "recorders",
         "properties": {
-			"url": "",
-			"username": "",
-			"password": "",
-			"clientId": "",
-			"clientSecret": ""
+          "url": "",
+          "username": "",
+          "password": "",
+          "clientId": "",
+          "clientSecret": ""
         }
       }
     ],
