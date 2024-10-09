@@ -1,0 +1,41 @@
+{
+  "system": {},
+  "system_url": "",
+  "template": {
+    "devices": [
+      {
+        "key": "processor",
+        "type": "pro3",
+        "name": "processor",
+        "group": "processor",
+        "uid": 0,
+        "supportedConfigModes": ["compliance", "essentials"],
+        "supportedSystemTypes": ["hudType", "presType", "vtcType", "custom"],
+        "supportsCompliance": true,
+        "properties": {
+          "numberOfComPorts": 6,
+          "numberOfIrPorts": 8,
+          "numberOfRelays": 8,
+          "numberOfDIOPorts": 8
+        }
+      },
+      {
+        "key": "recorder",
+        "uid": 6,
+        "name": "recorder",
+        "type": "PanoptoCloud",
+        "group": "recorders",
+        "properties": {
+          "url": "",
+          "username": "",
+          "password": "",
+          "clientId": "",
+          "clientSecret": ""
+        }
+      }
+    ],
+    "info": {},
+    "rooms": [],
+    "tieLines": []
+  }
+}

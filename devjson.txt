@@ -1,0 +1,6 @@
+devjson:10 {"deviceKey":"recorder", "methodName":"SetDeviceName", "params":[]}
+devjson:10 {"deviceKey":"recorder", "methodName":"StartRecording", "params":[]}
+devjson:10 {"deviceKey":"recorder", "methodName":"StopRecording", "params":[]}
+devjson:10 {"deviceKey":"recorder", "methodName":"ExtendRecording", "params":[]}
+devjson:10 {"deviceKey":"recorder", "methodName":"PollCurrentRecording", "params":[]}
+devjson:10 {"deviceKey":"recorder", "methodName":"TestHttps", "params":[]}

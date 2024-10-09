@@ -42,28 +42,14 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 
 ### Config Notes
 
-> This configuration matches a standard essentials device configuration at the base level, with only the type being different. This may have the type **`tesira`**, **`tesiraforte`**, **`tesiraserver`**, **`tesiradsp`**, or **`tesira-dsp`**.
+> This configuration matches a standard essentials device configuration at the base level, with only the type being different. This may have the type **`panopto`**, or **`panoptocloud`**.
 
 ```javascript
 {
-    "key": "TesiraDsp-1",
-    "name": "TesiraDspTesting",
-    "type": "tesiraDsp",
-    "group": "dsp",
+    "key": "remote-recorder",
+    "name": "Panopto Remote Recorder",
+    "type": "panopto",
     "properties": {
-        "control": {
-            "endOfLineString": "\n",
-            "deviceReadyResponsePattern": "",
-            "method": "ssh",
-            "tcpSshProperties": {
-                "address": "10.11.50.191",
-                "port": 22,
-                "autoReconnect": true,
-                "AutoReconnectIntervalMs": 10000,
-                "username": "default",
-                "password": "default"
-            }
-        }
     }
 }
 ```
