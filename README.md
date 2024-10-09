@@ -114,14 +114,41 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 
 | Join | Type (RW) | Description |
 | --- | --- | --- |
+| 1 | R | Recorder Online |
+| 2 | R | Start Recording |
+| 3 | R | Stop Recording |
+| 4 | R | Pause Recording |
+| 5 | R | Resume Recording |
+| 6 | R | Extend Recording |
+| 11 | R | Increment Length |
+| 12 | R | Decrement Length |
+| 5 | R | Recording Is Paused |
+| 6 | R | Recording Is In Progress |
+| 20 | R | Next Recording Exists |
 
 #### Analogs
 
 | Join | Type (RW) | Description |
 | --- | --- | --- |
+| 1 | R | Recorder Status |
+| 11 | R | Default Recording Length |
 
 #### Serials
 
 | Join | Type (RW) | Description |
 | --- | --- | --- |
+| 1 | R | Recorder Name |
+| 2 | R | Recorder Status |
+| 11 | R | CurrentRecordingId |
+| 12 | R | Recorder Name |
+| 13 | R | CurrentRecordingStartTime |
+| 14 | R | CurrentRecordingEndTime |
+| 15 | R | CurrentRecordingLength |
+| 16 | R | CurrentRecordingMinutesRemaining |
+| 21 | R | NextRecordingId |
+| 22 | R | Recorder Name |
+| 23 | R | NextRecordingStartTime |
+| 24 | R | NextRecordingEndTime |
+| 25 | R | NextRecordingLength |
+| 26 | R | NextRecordingMinutesRemaining |
 <!-- END Join Maps -->
