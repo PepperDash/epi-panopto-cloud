@@ -60,3 +60,68 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
         }
       }
 ```
+<!-- START Interfaces Implemented -->
+### Interfaces Implemented
+
+- ICommunicationMonitor
+<!-- END Interfaces Implemented -->
+<!-- START Base Classes -->
+### Base Classes
+
+- JoinMapBaseAdvanced
+- StatusMonitorBase
+- ReconfigurableBridgableDevice
+<!-- END Base Classes -->
+<!-- START Supported Types -->
+### Supported Types
+
+- panopto
+- panoptocloud
+<!-- END Supported Types -->
+<!-- START Minimum Essentials Framework Versions -->
+### Minimum Essentials Framework Versions
+
+- 1.12.8
+<!-- END Minimum Essentials Framework Versions -->
+<!-- START Public Methods -->
+### Public Methods
+
+- public void SetOnlineStatus(bool isOnline)
+- public void UpdateTimers()
+- public void SetClientId(string clientId)
+- public void SetClientSecret(string clientSecret)
+- public bool CheckTokenAndUpdate()
+- public bool UpdateToken()
+- public void SetDeviceName(string name)
+- public void IncrementDefaultLength(ushort inc)
+- public void DecrementDefaultLength(ushort dec)
+- public void SetDefaultLength(ushort value)
+- public bool PollRecorder()
+- public void StartRecording()
+- public void StopRecording()
+- public void PauseRecording()
+- public void ResumeRecording()
+- public void ExtendRecording()
+- public void ExtendRecording(int minutes)
+- public void PollCurrentRecording()
+- public void ProcessCurrentRecording(HttpsClientResponse response)
+- public RecoderInfo GetRecorder(string name, string url, string token)
+<!-- END Public Methods -->
+<!-- START Join Maps -->
+### Join Maps
+
+#### Digitals
+
+| Join | Type (RW) | Description |
+| --- | --- | --- |
+
+#### Analogs
+
+| Join | Type (RW) | Description |
+| --- | --- | --- |
+
+#### Serials
+
+| Join | Type (RW) | Description |
+| --- | --- | --- |
+<!-- END Join Maps -->
