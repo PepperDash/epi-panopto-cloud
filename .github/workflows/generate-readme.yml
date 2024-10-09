@@ -1,0 +1,13 @@
+name: Caller Workflow
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  call-update-readme:
+    uses: PepperDash/readme-automation/.github/workflows/update-readme.yml@main
+    with:
+      target-branch: ${{ github.ref_name }}
