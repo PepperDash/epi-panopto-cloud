@@ -45,11 +45,18 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 > This configuration matches a standard essentials device configuration at the base level, with only the type being different. This may have the type **`panopto`**, or **`panoptocloud`**.
 
 ```javascript
-{
-    "key": "remote-recorder",
-    "name": "Panopto Remote Recorder",
-    "type": "panopto",
-    "properties": {
-    }
-}
+
+        "key": "recorder",
+        "uid": 6,
+        "name": "recorder",
+        "type": "PanoptoCloud",
+        "group": "recorders",
+        "properties": {
+          "url": "",
+          "username": "",
+          "password": "",
+          "clientId": "",
+          "clientSecret": ""
+        }
+      }
 ```
