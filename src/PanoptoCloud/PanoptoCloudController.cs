@@ -222,7 +222,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
         public override void Initialize()
         {
-            _pollTimer.Reset(5000, 50000);
+            _pollTimer.Reset(5000, 10000);
         }
 
         public bool CheckTokenAndUpdate()
@@ -482,15 +482,18 @@ namespace PepperDash.Essentials.PanoptoCloud
 
             Debug.Console(1, this, "Polling current recording:{0}", request.Url.Url);
 
-                try
+            try
+            {
+                var result = Client.Dispatch(request);
+                if (result != null)
                 {
-                    var result = Client.Dispatch(request);
                     ProcessCurrentRecording(result);
                 }
-                catch (Exception ex)
-                {
-                    Debug.Console(1, this, "Error polling recording {0}", ex.Message);
-                }
+            }
+            catch (Exception ex)
+            {
+                Debug.Console(1, this, "Error polling recording {0}", ex.Message);
+            }
             
         }
 
@@ -558,14 +561,14 @@ namespace PepperDash.Essentials.PanoptoCloud
                         var responseCode = response.Code;
 
                         _monitor.SetOnlineStatus(responseCode == 200 && responseCode != 401);
+             
+                        IsOnline.FireUpdate();
 
+                        return ParseRecordingInfo(name, response);
                     }
-                    else
-                    {
-                        _monitor.SetOnlineStatus(false);
-                    }
-                    IsOnline.FireUpdate();
-                    return ParseRecordingInfo(name, response);  
+                    _monitor.SetOnlineStatus(false);
+                       IsOnline.FireUpdate();
+                    return _recorder;
                 }
                 catch (Exception ex)
                 {
