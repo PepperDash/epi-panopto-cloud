@@ -51,6 +51,7 @@ namespace PepperDash.Essentials.PanoptoCloud
         public readonly StringFeedback CurrentRecordingMinutesRemaining;
         public readonly IntFeedback DefaultLength;
         public readonly BoolFeedback NextRecordingExists;
+        public readonly HttpsClient Client;
 
         static PanoptoCloudController()
         {
@@ -146,6 +147,8 @@ namespace PepperDash.Essentials.PanoptoCloud
             NameFeedback = new StringFeedback(() => Name);
 
             IsOnline = new BoolFeedback(() => _monitor.IsOnline);
+
+            Client = new HttpsClient().WithDefaultSettings();
         }
 
         public override bool CustomActivate()
@@ -219,7 +222,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
         public override void Initialize()
         {
-            _pollTimer.Reset(500, 5000);
+            _pollTimer.Reset(5000, 50000);
         }
 
         public bool CheckTokenAndUpdate()
@@ -358,18 +361,17 @@ namespace PepperDash.Essentials.PanoptoCloud
             request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
 
             Debug.Console(1, this, "Attempting to start recording:{0}]\r{1}", request.Url.Url, request.ContentString);
-            using (var client = new HttpsClient().WithDefaultSettings())
-            {
+
                 try
                 {
-                    var result = client.Dispatch(request);
+                    var result = Client.Dispatch(request);
                     ProcessCurrentRecording(result);
                 }
                 catch (Exception ex)
                 {
                     Debug.Console(1, this, "Error starting recording {0}", ex.Message);
                 }
-            }
+            
         }
 
         public void StopRecording()
@@ -397,18 +399,17 @@ namespace PepperDash.Essentials.PanoptoCloud
             request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
 
             Debug.Console(1, this, "Attempting to stop recording:{0}\r{1}", request.Url.Url, request.ContentString);
-            using (var client = new HttpsClient().WithDefaultSettings())
-            {
+
                 try
                 {
-                    var result = client.Dispatch(request);
+                    var result = Client.Dispatch(request);
                     ProcessCurrentRecording(result);
                 }
                 catch (Exception ex)
                 {
                     Debug.Console(1, this, "Error stopping recording {0}", ex.Message);
                 }
-            }
+            
         }
 
         public void PauseRecording()
@@ -451,18 +452,16 @@ namespace PepperDash.Essentials.PanoptoCloud
             request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
 
             Debug.Console(1, this, "Attempting to extend recording:{0} {1}", request.Url.Url, request.ContentString);
-            using (var client = new HttpsClient().WithDefaultSettings())
-            {
                 try
                 {
-                    var result = client.Dispatch(request);
+                    var result = Client.Dispatch(request);
                     ProcessCurrentRecording(result);
                 }
                 catch (Exception ex)
                 {
                     Debug.Console(1, this, "Error extending recording {0}", ex.Message);
                 }
-            }
+           
         }
 
         public void PollCurrentRecording()
@@ -482,18 +481,17 @@ namespace PepperDash.Essentials.PanoptoCloud
             var request = GetDefaultRequestWithAuthHeaders(url, _token, RequestType.Get);
 
             Debug.Console(1, this, "Polling current recording:{0}", request.Url.Url);
-            using (var client = new HttpsClient().WithDefaultSettings())
-            {
+
                 try
                 {
-                    var result = client.Dispatch(request);
+                    var result = Client.Dispatch(request);
                     ProcessCurrentRecording(result);
                 }
                 catch (Exception ex)
                 {
                     Debug.Console(1, this, "Error polling recording {0}", ex.Message);
                 }
-            }
+            
         }
 
         public void ProcessCurrentRecording(HttpsClientResponse response)
@@ -549,12 +547,11 @@ namespace PepperDash.Essentials.PanoptoCloud
             var fullUrl = String.Format("{0}{1}?searchQuery={2}", url, path, name);
 
             Debug.Console(1, "Searching for recorder name:{0}...", name);
-            using (var client = new HttpsClient())
-            {
+ 
                 try
                 {
                     var request = GetDefaultRequestWithAuthHeaders(fullUrl, token, RequestType.Get);
-                    var response = client.Dispatch(request);
+                    var response = Client.Dispatch(request);
 
                     if (response != null)
                     {
@@ -568,18 +565,23 @@ namespace PepperDash.Essentials.PanoptoCloud
                         _monitor.SetOnlineStatus(false);
                     }
                     IsOnline.FireUpdate();
-                    return ParseRecordingInfo(name, response);
+                    return ParseRecordingInfo(name, response);  
                 }
                 catch (Exception ex)
                 {
                     Debug.Console(1, "Error searching for recorder {0}{1}", ex.Message, ex.StackTrace);
                     return defaultRecorderInfo;
                 } 
-            }
+            
         }
 
         public static RecoderInfo ParseRecordingInfo(string name, HttpsClientResponse response)
         {
+            if (response == null)
+            {
+                Debug.Console(2, "Error repsonse is null");
+                return new RecoderInfo();
+            }
             using (var stream = new StreamReader(response.ContentStream))
             {
                 var reader = new JsonTextReader(stream);

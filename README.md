@@ -67,7 +67,7 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 <!-- END Interfaces Implemented -->
 <!-- START Base Classes -->
 ### Base Classes
-
+<!-- SKIP Base Classes -->
 - JoinMapBaseAdvanced
 - StatusMonitorBase
 - ReconfigurableBridgableDevice
