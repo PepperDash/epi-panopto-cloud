@@ -188,7 +188,7 @@ jobs:
         run: Write-Output "$($Env:VERSION)" | Out-File -FilePath "$($Env:GITHUB_HOME)\output\version.txt"
       # Upload output files
       - name: Upload Build Output
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: Build
           path: ./${{ env.SOLUTION_FILE}}-${{ env.VERSION}}.zip
@@ -211,7 +211,7 @@ jobs:
       # Upload the build package to the release
       - name: Upload Release Package
         id: upload_release
-        uses: actions/upload-release-asset@v1
+        uses: actions/upload-release-asset@v4
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./${{ env.SOLUTION_FILE}}-${{ env.VERSION}}.zip
