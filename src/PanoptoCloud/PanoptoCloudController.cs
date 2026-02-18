@@ -149,6 +149,8 @@ namespace PepperDash.Essentials.PanoptoCloud
             IsOnline = new BoolFeedback(() => _monitor.IsOnline);
 
             Client = new HttpsClient().WithDefaultSettings();
+
+            Client.PeerVerification = false;
         }
 
         public override bool CustomActivate()
@@ -364,6 +366,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
                 try
                 {
+                    Client.PeerVerification = false;
                     var result = Client.Dispatch(request);
                     ProcessCurrentRecording(result);
                 }
@@ -402,6 +405,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
                 try
                 {
+                    Client.PeerVerification = false;
                     var result = Client.Dispatch(request);
                     ProcessCurrentRecording(result);
                 }
@@ -454,6 +458,7 @@ namespace PepperDash.Essentials.PanoptoCloud
             Debug.Console(1, this, "Attempting to extend recording:{0} {1}", request.Url.Url, request.ContentString);
                 try
                 {
+                    Client.PeerVerification = false;
                     var result = Client.Dispatch(request);
                     ProcessCurrentRecording(result);
                 }
@@ -484,6 +489,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
             try
             {
+                Client.PeerVerification = false;
                 var result = Client.Dispatch(request);
                 if (result != null)
                 {
@@ -553,6 +559,7 @@ namespace PepperDash.Essentials.PanoptoCloud
  
                 try
                 {
+                    Client.PeerVerification = false;
                     var request = GetDefaultRequestWithAuthHeaders(fullUrl, token, RequestType.Get);
                     var response = Client.Dispatch(request);
 
