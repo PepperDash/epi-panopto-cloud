@@ -81,7 +81,7 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 <!-- START Minimum Essentials Framework Versions -->
 ### Minimum Essentials Framework Versions
 
-- 1.12.8
+- 1.16.0
 <!-- END Minimum Essentials Framework Versions -->
 <!-- START Public Methods -->
 ### Public Methods
