@@ -60,3 +60,95 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
         }
       }
 ```
+<!-- START Interfaces Implemented -->
+### Interfaces Implemented
+
+- ICommunicationMonitor
+<!-- END Interfaces Implemented -->
+<!-- START Base Classes -->
+### Base Classes
+<!-- SKIP Base Classes -->
+- JoinMapBaseAdvanced
+- StatusMonitorBase
+- ReconfigurableBridgableDevice
+<!-- END Base Classes -->
+<!-- START Supported Types -->
+### Supported Types
+
+- panopto
+- panoptocloud
+<!-- END Supported Types -->
+<!-- START Minimum Essentials Framework Versions -->
+### Minimum Essentials Framework Versions
+
+- 1.16.0
+<!-- END Minimum Essentials Framework Versions -->
+<!-- START Public Methods -->
+### Public Methods
+
+- public void SetOnlineStatus(bool isOnline)
+- public void UpdateTimers()
+- public void SetClientId(string clientId)
+- public void SetClientSecret(string clientSecret)
+- public bool CheckTokenAndUpdate()
+- public bool UpdateToken()
+- public void SetDeviceName(string name)
+- public void IncrementDefaultLength(ushort inc)
+- public void DecrementDefaultLength(ushort dec)
+- public void SetDefaultLength(ushort value)
+- public bool PollRecorder()
+- public void StartRecording()
+- public void StopRecording()
+- public void PauseRecording()
+- public void ResumeRecording()
+- public void ExtendRecording()
+- public void ExtendRecording(int minutes)
+- public void PollCurrentRecording()
+- public void ProcessCurrentRecording(HttpsClientResponse response)
+- public RecoderInfo GetRecorder(string name, string url, string token)
+<!-- END Public Methods -->
+<!-- START Join Maps -->
+### Join Maps
+
+#### Digitals
+
+| Join | Type (RW) | Description |
+| --- | --- | --- |
+| 1 | R | Recorder Online |
+| 2 | R | Start Recording |
+| 3 | R | Stop Recording |
+| 4 | R | Pause Recording |
+| 5 | R | Resume Recording |
+| 6 | R | Extend Recording |
+| 11 | R | Increment Length |
+| 12 | R | Decrement Length |
+| 5 | R | Recording Is Paused |
+| 6 | R | Recording Is In Progress |
+| 20 | R | Next Recording Exists |
+
+#### Analogs
+
+| Join | Type (RW) | Description |
+| --- | --- | --- |
+| 1 | R | Recorder Status |
+| 11 | R | Default Recording Length |
+
+#### Serials
+
+| Join | Type (RW) | Description |
+| --- | --- | --- |
+| 1 | R | Recorder Name |
+| 2 | R | Recorder Status |
+| 11 | R | CurrentRecordingId |
+| 12 | R | Recorder Name |
+| 13 | R | CurrentRecordingStartTime |
+| 14 | R | CurrentRecordingEndTime |
+| 15 | R | CurrentRecordingLength |
+| 16 | R | CurrentRecordingMinutesRemaining |
+| 21 | R | NextRecordingId |
+| 22 | R | Recorder Name |
+| 23 | R | NextRecordingStartTime |
+| 24 | R | NextRecordingEndTime |
+| 25 | R | NextRecordingLength |
+| 26 | R | NextRecordingMinutesRemaining |
+<!-- END Join Maps -->

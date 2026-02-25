@@ -11,6 +11,7 @@ namespace PepperDash.Essentials.PanoptoCloud
         {
             using (var client = new HttpsClient())
             {
+                client.PeerVerification = false;
                 var request = BuildRequest(url, username, password, clientId, clientPassword);
                 var response = client.Dispatch(request);
                 if (response == null)
