@@ -67,27 +67,22 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 <!-- END Interfaces Implemented -->
 <!-- START Base Classes -->
 ### Base Classes
-<!-- SKIP Base Classes -->
+
+- ReconfigurableBridgableDevice
 - JoinMapBaseAdvanced
 - StatusMonitorBase
-- ReconfigurableBridgableDevice
 <!-- END Base Classes -->
 <!-- START Supported Types -->
-### Supported Types
 
-- panopto
-- panoptocloud
 <!-- END Supported Types -->
 <!-- START Minimum Essentials Framework Versions -->
 ### Minimum Essentials Framework Versions
 
-- 1.16.0
+- 1.12.8
 <!-- END Minimum Essentials Framework Versions -->
 <!-- START Public Methods -->
 ### Public Methods
 
-- public void SetOnlineStatus(bool isOnline)
-- public void UpdateTimers()
 - public void SetClientId(string clientId)
 - public void SetClientSecret(string clientSecret)
 - public bool CheckTokenAndUpdate()
@@ -106,6 +101,8 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 - public void PollCurrentRecording()
 - public void ProcessCurrentRecording(HttpsClientResponse response)
 - public RecoderInfo GetRecorder(string name, string url, string token)
+- public void SetOnlineStatus(bool isOnline)
+- public void UpdateTimers()
 <!-- END Public Methods -->
 <!-- START Join Maps -->
 ### Join Maps
@@ -152,3 +149,12 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 | 25 | R | NextRecordingLength |
 | 26 | R | NextRecordingMinutesRemaining |
 <!-- END Join Maps -->
+<!-- START Bool Feedbacks -->
+
+<!-- END Bool Feedbacks -->
+<!-- START Int Feedbacks -->
+
+<!-- END Int Feedbacks -->
+<!-- START String Feedbacks -->
+
+<!-- END String Feedbacks -->
