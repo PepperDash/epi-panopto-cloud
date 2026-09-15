@@ -203,7 +203,7 @@ namespace PepperDash.Essentials.Plugins
             }
 
             CrestronSecureStorage.Flush();
-            this.LogInformation("Succesfully stored clientId");
+            this.LogInformation("Successfully stored clientId");
         }
 
         public void SetClientSecret(string clientSecret)
@@ -221,7 +221,7 @@ namespace PepperDash.Essentials.Plugins
             }
 
             CrestronSecureStorage.Flush();
-            this.LogInformation("Succesfully stored clientSecret");
+            this.LogInformation("Successfully stored clientSecret");
         }
 
         protected override void Initialize()
@@ -587,7 +587,7 @@ namespace PepperDash.Essentials.Plugins
         {
             if (response == null)
             {
-                Debug.LogMessage(LogEventLevel.Debug, "Error repsonse is null");
+                Debug.LogMessage(LogEventLevel.Debug, "Error response is null");
                 return new RecoderInfo();
             }
             {

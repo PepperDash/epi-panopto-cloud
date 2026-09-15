@@ -32,7 +32,7 @@ To verify that the packages installed correctly, open the plugin solution in you
 
 ## Installation
 
-This plugin is provided as a published [nuget package](https://www.nuget.org/packages/PepperDash.Essentials.Plugin.PanoptoCloudEpi) for your convenience.
+This plugin is provided as a published [nuget package](https://www.nuget.org/packages/PepperDash.Essentials.Plugins.Panopto.Cloud) for your convenience.
 
 Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart your program.
 

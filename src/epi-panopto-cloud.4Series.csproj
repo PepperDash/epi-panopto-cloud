@@ -7,7 +7,7 @@
 		<AssemblyName>PepperDash.Essentials.Plugins.Panopto.Cloud</AssemblyName>
 		<Configurations>Debug;Release</Configurations>
 		<Deterministic>false</Deterministic>
-		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
 		<AssemblyTitle>EPI.Panopto.Cloud</AssemblyTitle>
 		<Description>PepperDash Essentials plugin for control of Panopto Cloud.</Description>
 		<PackageId>PepperDash.Essentials.Plugins.Panopto.Cloud</PackageId>
