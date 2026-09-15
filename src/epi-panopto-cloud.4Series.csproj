@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<ProjectType>ProgramLibrary</ProjectType>
+		<TargetFramework>net8</TargetFramework>
+		<RootNamespace>PepperDash.Essentials.Plugins</RootNamespace>
+		<AssemblyName>PepperDash.Essentials.Plugins.Panopto.Cloud</AssemblyName>
+		<Configurations>Debug;Release</Configurations>
+		<Deterministic>false</Deterministic>
+		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+		<AssemblyTitle>EPI.Panopto.Cloud</AssemblyTitle>
+		<Description>PepperDash Essentials plugin for control of Panopto Cloud.</Description>
+		<PackageId>PepperDash.Essentials.Plugins.Panopto.Cloud</PackageId>
+		<PackageProjectUrl>https://github.com/PepperDash/epi-panopto-cloud</PackageProjectUrl>
+		<PackageTags>crestron 4series panopto cloud</PackageTags>
+	</PropertyGroup>
+	<ItemGroup>
+		<Compile Remove="Properties\**" />
+		<EmbeddedResource Remove="Properties\**" />
+		<None Remove="Properties\**" />
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Crestron.SimplSharp.SDK.ProgramLibrary" Version="2.21.128" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+		<PackageReference Include="PepperDashEssentials" Version="3.0.0-feat-routing-slot-online-sync.2">
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</PackageReference>
+	</ItemGroup>
+</Project>
