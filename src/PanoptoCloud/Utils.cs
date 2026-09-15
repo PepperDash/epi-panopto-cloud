@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Text;
 using Crestron.SimplSharp;
 using Crestron.SimplSharp.Net.Https;
 
-namespace PepperDash.Essentials.PanoptoCloud
+namespace PepperDash.Essentials.Plugins
 {
     public static class Utils
     {

@@ -1,7 +1,7 @@
-﻿using PepperDash.Core;
+using PepperDash.Core;
 using PepperDash.Essentials.Core;
 
-namespace PepperDash.Essentials.PanoptoCloud
+namespace PepperDash.Essentials.Plugins
 {
     public class PanoptoCloudStatusMonitor : StatusMonitorBase
     {

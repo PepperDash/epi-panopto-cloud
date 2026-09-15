@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Text;
 using Crestron.SimplSharp.Net.Https;
 using Newtonsoft.Json;
 
-namespace PepperDash.Essentials.PanoptoCloud
+namespace PepperDash.Essentials.Plugins
 {
     public static class PanoptoOauthClient
     {

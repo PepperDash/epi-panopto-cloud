@@ -1,4 +1,4 @@
-namespace PepperDash.Essentials.PanoptoCloud
+namespace PepperDash.Essentials.Plugins
 {
     public enum RemoteRecorderState
     {

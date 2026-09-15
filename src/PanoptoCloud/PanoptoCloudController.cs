@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,13 +8,15 @@ using Crestron.SimplSharp.Net.Https;
 using Crestron.SimplSharpPro.DeviceSupport;
 using Newtonsoft.Json;
 using PepperDash.Core;
+using Serilog.Events;
+using PepperDash.Core.Logging;
 using PepperDash.Essentials.Core;
 using PepperDash.Essentials.Core.Bridges;
 using PepperDash.Essentials.Core.Config;
 using PepperDash.Essentials.Core.Devices;
 using RequestType = Crestron.SimplSharp.Net.Https.RequestType;
 
-namespace PepperDash.Essentials.PanoptoCloud
+namespace PepperDash.Essentials.Plugins
 {
     public class PanoptoCloudController : ReconfigurableBridgableDevice, ICommunicationMonitor
     {
@@ -153,7 +155,7 @@ namespace PepperDash.Essentials.PanoptoCloud
             Client.PeerVerification = false;
         }
 
-        public override bool CustomActivate()
+        protected override bool CustomActivate()
         {
             RecorderStatusInt.OutputChange += (sender, args) =>
             {
@@ -169,7 +171,7 @@ namespace PepperDash.Essentials.PanoptoCloud
             };
 
             RecorderStatusString.OutputChange +=
-                (sender, args) => Debug.Console(1, this, "Recorder Status:{0}", args.StringValue);
+                (sender, args) => this.LogInformation("Recorder Status:{0}", args.StringValue);
 
             IsRecording.FireUpdate();
             IsPaused.FireUpdate(); ;
@@ -196,12 +198,12 @@ namespace PepperDash.Essentials.PanoptoCloud
 
             if (storageResult != eCrestronSecureStorageStatus.Ok)
             {
-                Debug.Console(1, this, "Failed to store clientId");
+                this.LogInformation("Failed to store clientId");
                 return;
             }
 
             CrestronSecureStorage.Flush();
-            Debug.Console(1, this, "Succesfully stored clientId");
+            this.LogInformation("Succesfully stored clientId");
         }
 
         public void SetClientSecret(string clientSecret)
@@ -214,15 +216,15 @@ namespace PepperDash.Essentials.PanoptoCloud
 
             if (storageResult != eCrestronSecureStorageStatus.Ok)
             {
-                Debug.Console(1, this, "Failed to store clientSecret");
+                this.LogInformation("Failed to store clientSecret");
                 return;
             }
 
             CrestronSecureStorage.Flush();
-            Debug.Console(1, this, "Succesfully stored clientSecret");
+            this.LogInformation("Succesfully stored clientSecret");
         }
 
-        public override void Initialize()
+        protected override void Initialize()
         {
             _pollTimer.Reset(5000, 10000);
         }
@@ -241,30 +243,30 @@ namespace PepperDash.Essentials.PanoptoCloud
                 string clientId;
                 if (!Utils.TryGetValueFromSecureStorage(Key + "-" + "ClientId", out clientId))
                 {
-                    Debug.Console(1, this, "Client Id not set");
+                    this.LogInformation("Client Id not set");
                     return false;
                 }
 
                 string clientSecret;
                 if (!Utils.TryGetValueFromSecureStorage(Key + "-" + "ClientSecret", out clientSecret))
                 {
-                    Debug.Console(1, this, "Client Secret not set");
+                    this.LogInformation("Client Secret not set");
                     return false;
                 }
 
-                Debug.Console(1, this, "Getting token...");
+                this.LogInformation("Getting token...");
                 var token = PanoptoOauthClient.GetToken(url, _username, _password, clientId, clientSecret);
                 _token = token.AccessToken;
 
                 var expireTime = token.ExpiresIn * 1000 - 500;
                 _oauthTimer.Reset(expireTime);
-                Debug.Console(1, this, "Success!  Token expires at: {0}", DateTime.Now.AddMilliseconds(expireTime).ToShortTimeString());
+                this.LogInformation("Success!  Token expires at: {0}", DateTime.Now.AddMilliseconds(expireTime).ToShortTimeString());
                 return true;
             }
             catch (Exception ex)
             {
                 _oauthTimer.Reset();
-                Debug.Console(1, this, "Caught an error getting the token: {0}{1}", ex.Message, ex.StackTrace);
+                this.LogInformation("Caught an error getting the token: {0}{1}", ex.Message, ex.StackTrace);
                 return false;
             }
         }
@@ -316,13 +318,13 @@ namespace PepperDash.Essentials.PanoptoCloud
         {
             if (!CheckTokenAndUpdate())
             {
-                Debug.Console(1, this, "Cannot poll recorder; no token");
+                this.LogInformation("Cannot poll recorder; no token");
                 return false;
             }
 
             if (String.IsNullOrEmpty(Name))
             {
-                Debug.Console(1, this, "Cannot poll recorder, recorder name is not set");
+                this.LogInformation("Cannot poll recorder, recorder name is not set");
                 return false;
             }
 
@@ -332,7 +334,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
             RecorderStatusInt.FireUpdate();
 
-            Debug.Console(1, this, "Recorder Status:\r{0}", JsonConvert.SerializeObject(_recorder, Formatting.Indented));
+            this.LogInformation("Recorder Status:\r{0}", JsonConvert.SerializeObject(_recorder, Formatting.Indented));
             return _recorder.Id.Equals(Guid.Empty);
         }
 
@@ -362,7 +364,7 @@ namespace PepperDash.Essentials.PanoptoCloud
             request.ContentString = JsonConvert.SerializeObject(body);
             request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
 
-            Debug.Console(1, this, "Attempting to start recording:{0}]\r{1}", request.Url.Url, request.ContentString);
+            this.LogInformation("Attempting to start recording:{0}]\r{1}", request.Url.Url, request.ContentString);
 
                 try
                 {
@@ -372,7 +374,7 @@ namespace PepperDash.Essentials.PanoptoCloud
                 }
                 catch (Exception ex)
                 {
-                    Debug.Console(1, this, "Error starting recording {0}", ex.Message);
+                    this.LogInformation("Error starting recording {0}", ex.Message);
                 }
             
         }
@@ -384,7 +386,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
             if (_currentRecordingId == Guid.Empty)
             {
-                Debug.Console(1, this, "Cannot stop recording, current recording id is not set");
+                this.LogInformation("Cannot stop recording, current recording id is not set");
                 return;
             }
 
@@ -401,7 +403,7 @@ namespace PepperDash.Essentials.PanoptoCloud
             request.ContentString = JsonConvert.SerializeObject(body);
             request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
 
-            Debug.Console(1, this, "Attempting to stop recording:{0}\r{1}", request.Url.Url, request.ContentString);
+            this.LogInformation("Attempting to stop recording:{0}\r{1}", request.Url.Url, request.ContentString);
 
                 try
                 {
@@ -411,7 +413,7 @@ namespace PepperDash.Essentials.PanoptoCloud
                 }
                 catch (Exception ex)
                 {
-                    Debug.Console(1, this, "Error stopping recording {0}", ex.Message);
+                    this.LogInformation("Error stopping recording {0}", ex.Message);
                 }
             
         }
@@ -439,7 +441,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
             if (_currentRecordingId == Guid.Empty)
             {
-                Debug.Console(1, this, "Cannot extend recording, current recording id is not set");
+                this.LogInformation("Cannot extend recording, current recording id is not set");
                 return;
             }
 
@@ -455,7 +457,7 @@ namespace PepperDash.Essentials.PanoptoCloud
             request.ContentString = JsonConvert.SerializeObject(body);
             request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
 
-            Debug.Console(1, this, "Attempting to extend recording:{0} {1}", request.Url.Url, request.ContentString);
+            this.LogInformation("Attempting to extend recording:{0} {1}", request.Url.Url, request.ContentString);
                 try
                 {
                     Client.PeerVerification = false;
@@ -464,7 +466,7 @@ namespace PepperDash.Essentials.PanoptoCloud
                 }
                 catch (Exception ex)
                 {
-                    Debug.Console(1, this, "Error extending recording {0}", ex.Message);
+                    this.LogInformation("Error extending recording {0}", ex.Message);
                 }
            
         }
@@ -476,7 +478,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
             if (_currentRecordingId == Guid.Empty)
             {
-                Debug.Console(1, this, "Cannot get recording, current recording id is not set");
+                this.LogInformation("Cannot get recording, current recording id is not set");
                 return;
             }
 
@@ -485,7 +487,7 @@ namespace PepperDash.Essentials.PanoptoCloud
 
             var request = GetDefaultRequestWithAuthHeaders(url, _token, RequestType.Get);
 
-            Debug.Console(1, this, "Polling current recording:{0}", request.Url.Url);
+            this.LogInformation("Polling current recording:{0}", request.Url.Url);
 
             try
             {
@@ -498,7 +500,7 @@ namespace PepperDash.Essentials.PanoptoCloud
             }
             catch (Exception ex)
             {
-                Debug.Console(1, this, "Error polling recording {0}", ex.Message);
+                this.LogInformation("Error polling recording {0}", ex.Message);
             }
             
         }
@@ -507,24 +509,20 @@ namespace PepperDash.Essentials.PanoptoCloud
         {
             if (response.Code != 200)
             {
-                Debug.Console(1, this, "Error processing recording... Code:{0}\r{1}", response.Code, response.ContentString);
+                this.LogInformation("Error processing recording... Code:{0}\r{1}", response.Code, response.ContentString);
                 _recordingTimer.Reset(5000);
             }
             else
             {
-                using (var stream = new StreamReader(response.ContentStream))
                 {
-                    var reader = new JsonTextReader(stream);
-                    var serializer = new JsonSerializer();
-
-                    var currentRecording = serializer.Deserialize<ScheduledRecording>(reader);
-                    Debug.Console(2, this, "Processing recording...\r{0}", JsonConvert.SerializeObject(currentRecording, Formatting.Indented));
-                    Debug.Console(2, this, "Start time:{0}", currentRecording.StartTime.ToShortTimeString());
-                    Debug.Console(2, this, "End time:{0}", currentRecording.EndTime.ToShortTimeString());
+                    var currentRecording = JsonConvert.DeserializeObject<ScheduledRecording>(response.ContentString);
+                    this.LogDebug("Processing recording...\r{0}", JsonConvert.SerializeObject(currentRecording, Formatting.Indented));
+                    this.LogDebug("Start time:{0}", currentRecording.StartTime.ToShortTimeString());
+                    this.LogDebug("End time:{0}", currentRecording.EndTime.ToShortTimeString());
 
                     if (DateTime.UtcNow >= currentRecording.EndTime.ToUniversalTime())
                     {
-                        Debug.Console(1, this, "Recording is over... clearing");
+                        this.LogInformation("Recording is over... clearing");
                         _currentRecordingId = Guid.Empty;
                         _currentRecordingName = String.Empty;
                         _recordingTimer.Stop();
@@ -555,7 +553,7 @@ namespace PepperDash.Essentials.PanoptoCloud
             const string path = "/Panopto/api/v1/remoteRecorders/search";
             var fullUrl = String.Format("{0}{1}?searchQuery={2}", url, path, name);
 
-            Debug.Console(1, "Searching for recorder name:{0}...", name);
+            Debug.LogMessage(LogEventLevel.Information, "Searching for recorder name:{0}...", name);
  
                 try
                 {
@@ -579,7 +577,7 @@ namespace PepperDash.Essentials.PanoptoCloud
                 }
                 catch (Exception ex)
                 {
-                    Debug.Console(1, "Error searching for recorder {0}{1}", ex.Message, ex.StackTrace);
+                    Debug.LogMessage(LogEventLevel.Information, "Error searching for recorder {0}{1}", ex.Message, ex.StackTrace);
                     return defaultRecorderInfo;
                 } 
             
@@ -589,15 +587,11 @@ namespace PepperDash.Essentials.PanoptoCloud
         {
             if (response == null)
             {
-                Debug.Console(2, "Error repsonse is null");
+                Debug.LogMessage(LogEventLevel.Debug, "Error repsonse is null");
                 return new RecoderInfo();
             }
-            using (var stream = new StreamReader(response.ContentStream))
             {
-                var reader = new JsonTextReader(stream);
-                var serializer = new JsonSerializer();
-
-                var results = serializer.Deserialize<RemoteRecoderSearchResult>(reader);
+                var results = JsonConvert.DeserializeObject<RemoteRecoderSearchResult>(response.ContentString);
                 return results.Results.FirstOrDefault(r => r.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ??
                        new RecoderInfo();
             }
