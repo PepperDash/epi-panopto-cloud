@@ -328,14 +328,17 @@ namespace PepperDash.Essentials.Plugins
                 return false;
             }
 
-            _recorder = GetRecorder(Name, _url, _token);
-            if (_recorder == null)
-                throw new Exception("Something went wrong... this shouldn't have happened");
+            _recorder = GetRecorder(Name, _url, _token) ?? new RecoderInfo();
 
             RecorderStatusInt.FireUpdate();
 
             this.LogInformation("Recorder Status:\r{0}", JsonConvert.SerializeObject(_recorder, Formatting.Indented));
-            return _recorder.Id.Equals(Guid.Empty);
+
+            // True means the recorder was found. This used to return the opposite, which inverted
+            // both callers: "if (id is empty && !PollRecorder()) return;" gave up precisely when
+            // the poll had just succeeded, so a stop or extend issued before the first background
+            // poll did nothing at all.
+            return !_recorder.Id.Equals(Guid.Empty);
         }
 
         public void StartRecording()
