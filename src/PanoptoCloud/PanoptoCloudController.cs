@@ -23,6 +23,16 @@ namespace PepperDash.Essentials.Plugins
         private readonly string _url;
         private readonly string _username;
         private readonly string _password;
+        /// <summary>
+        /// Set once the by-id read has proved it is not available on this server, after which
+        /// every poll goes back to searching. See <see cref="GetRecorderById"/>.
+        /// </summary>
+        private bool _byIdUnavailable;
+
+        /// <summary>True once a by-id read has actually worked, which is what makes a later 404
+        /// mean "this recorder is gone" rather than "this server has no such endpoint".</summary>
+        private bool _byIdWorked;
+
         private readonly CTimer _oauthTimer;
         private readonly CTimer _pollTimer;
         private readonly CTimer _recordingTimer;
@@ -80,6 +90,35 @@ namespace PepperDash.Essentials.Plugins
                     device.SetClientId(clientId);
 
                 }, "PANOPTOCLIENT", "Format: [Device_Key]:[Client_Id]", ConsoleAccessLevelEnum.AccessAdministrator);
+
+            // Reading a recorder by id is unverified against a live Panopto server — the published
+            // v1 summary lists only the search endpoint. This says which call the poll is actually
+            // making, so finding out does not mean reading logs.
+            CrestronConsole.AddNewConsoleCommand(
+                s =>
+                {
+                    var key = s.Trim();
+                    var device =
+                        DeviceManager.AllDevices.OfType<PanoptoCloudController>().
+                            FirstOrDefault(x => x.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+
+                    if (device == null)
+                    {
+                        CrestronConsole.ConsoleCommandResponse("Device not found");
+                        return;
+                    }
+
+                    CrestronConsole.ConsoleCommandResponse(
+                        "Recorder id: {0}\r\nRead by id: {1}\r\n",
+                        device._recorder == null ? "unknown" : device._recorder.Id.ToString(),
+                        device._byIdUnavailable
+                            ? "not available here - searching by name"
+                            : device._byIdWorked
+                                ? "working"
+                                : "not tried yet");
+
+                }, "PANOPTOPOLL", "Format: [Device_Key] - reports how this recorder is being read",
+                ConsoleAccessLevelEnum.AccessOperator);
 
             CrestronConsole.AddNewConsoleCommand(
                 s =>
@@ -328,7 +367,14 @@ namespace PepperDash.Essentials.Plugins
                 return false;
             }
 
-            _recorder = GetRecorder(Name, _url, _token) ?? new RecoderInfo();
+            // Once the id is known, read that one recorder rather than searching for it by name
+            // again. The search is the most expensive call in this API and this poll runs every
+            // ten seconds — and more often than that while a command is being chased.
+            var byId = _recorder != null && !_recorder.Id.Equals(Guid.Empty)
+                ? GetRecorderById(_recorder.Id)
+                : null;
+
+            _recorder = byId ?? GetRecorder(Name, _url, _token) ?? new RecoderInfo();
 
             RecorderStatusInt.FireUpdate();
 
@@ -545,6 +591,80 @@ namespace PepperDash.Essentials.Plugins
             CurrentRecordingEndTime.FireUpdate();
             CurrentRecordingName.FireUpdate();
             CurrentRecordingId.FireUpdate();
+        }
+
+        /// <summary>
+        /// Read one remote recorder by its id, or null to say "ask the other way".
+        ///
+        /// <para>Panopto's published v1 summary lists only <c>/remoteRecorders/search</c>, and the
+        /// by-id path it does document — <c>/remoteRecorderAPI/remoteRecorder/{id}</c> — needs a
+        /// hardware-partner key we do not have. This is the conventional REST sibling of the
+        /// search endpoint and is <b>unverified against a live server</b>, so it is written to cost
+        /// nothing if it is wrong: a 404 or 405 sets <see cref="_byIdUnavailable"/> and every poll
+        /// from then on searches by name as before.</para>
+        ///
+        /// <para>Any other failure returns null too, which falls back for that cycle only — a
+        /// timeout should not permanently give up a cheaper call.</para>
+        /// </summary>
+        public RecoderInfo GetRecorderById(Guid id)
+        {
+            if (_byIdUnavailable || id.Equals(Guid.Empty) || String.IsNullOrEmpty(_token))
+                return null;
+
+            var fullUrl = String.Format("{0}/Panopto/api/v1/remoteRecorders/{1}", _url, id);
+
+            try
+            {
+                Client.PeerVerification = false;
+                var request = GetDefaultRequestWithAuthHeaders(fullUrl, _token, RequestType.Get);
+                var response = Client.Dispatch(request);
+
+                if (response == null)
+                    return null;
+
+                // 405 is unambiguous: the path is there and GET is not allowed on it. A 404 is
+                // not — it means "no such endpoint" only until a by-id read has once succeeded,
+                // after which it means this recorder has been deleted or replaced, and the answer
+                // is to search by name again rather than to give up on the cheap call forever.
+                if (response.Code == 405 || (response.Code == 404 && !_byIdWorked))
+                {
+                    this.LogInformation(
+                        "Reading a recorder by id is not available here (code {0}); using search from now on",
+                        response.Code);
+                    _byIdUnavailable = true;
+                    return null;
+                }
+
+                if (response.Code == 404)
+                {
+                    this.LogInformation("Recorder {0} is no longer there; searching by name", id);
+                    return null;
+                }
+
+                if (response.Code != 200)
+                {
+                    this.LogDebug("Recorder by id returned {0}; falling back to search", response.Code);
+                    return null;
+                }
+
+                _monitor.SetOnlineStatus(true);
+                IsOnline.FireUpdate();
+
+                var recorder = JsonConvert.DeserializeObject<RecoderInfo>(response.ContentString);
+
+                // A body that parses but carries no id is not this recorder — treat it as a miss
+                // rather than overwriting a good one with an empty shell.
+                if (recorder == null || recorder.Id.Equals(Guid.Empty))
+                    return null;
+
+                _byIdWorked = true;
+                return recorder;
+            }
+            catch (Exception ex)
+            {
+                this.LogDebug("Error reading recorder by id, falling back to search: {0}", ex.Message);
+                return null;
+            }
         }
 
         public RecoderInfo GetRecorder(string name, string url, string token)
