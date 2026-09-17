@@ -64,19 +64,19 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 ### Interfaces Implemented
 
 - ICommunicationMonitor
+- IHasRecordingControl
+- IHasRecordingInfo
+- IHasPolling
 <!-- END Interfaces Implemented -->
 <!-- START Base Classes -->
 ### Base Classes
-<!-- SKIP Base Classes -->
+
+- ReconfigurableBridgableDevice
 - JoinMapBaseAdvanced
 - StatusMonitorBase
-- ReconfigurableBridgableDevice
 <!-- END Base Classes -->
 <!-- START Supported Types -->
-### Supported Types
 
-- panopto
-- panoptocloud
 <!-- END Supported Types -->
 <!-- START Minimum Essentials Framework Versions -->
 ### Minimum Essentials Framework Versions
@@ -86,8 +86,6 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 <!-- START Public Methods -->
 ### Public Methods
 
-- public void SetOnlineStatus(bool isOnline)
-- public void UpdateTimers()
 - public void SetClientId(string clientId)
 - public void SetClientSecret(string clientSecret)
 - public bool CheckTokenAndUpdate()
@@ -97,6 +95,8 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 - public void DecrementDefaultLength(ushort dec)
 - public void SetDefaultLength(ushort value)
 - public bool PollRecorder()
+- public void SetRecordingLength(int minutes)
+- public void Poll()
 - public void StartRecording()
 - public void StopRecording()
 - public void PauseRecording()
@@ -105,7 +105,10 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 - public void ExtendRecording(int minutes)
 - public void PollCurrentRecording()
 - public void ProcessCurrentRecording(HttpsClientResponse response)
+- public RecoderInfo GetRecorderById(Guid id)
 - public RecoderInfo GetRecorder(string name, string url, string token)
+- public void SetOnlineStatus(bool isOnline)
+- public void UpdateTimers()
 <!-- END Public Methods -->
 <!-- START Join Maps -->
 ### Join Maps
@@ -152,3 +155,12 @@ Place the **\*.cplz** file in the /users/programXX/plugins folder, and restart y
 | 25 | R | NextRecordingLength |
 | 26 | R | NextRecordingMinutesRemaining |
 <!-- END Join Maps -->
+<!-- START Bool Feedbacks -->
+
+<!-- END Bool Feedbacks -->
+<!-- START Int Feedbacks -->
+
+<!-- END Int Feedbacks -->
+<!-- START String Feedbacks -->
+
+<!-- END String Feedbacks -->
