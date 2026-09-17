@@ -11,6 +11,7 @@ using PepperDash.Core;
 using Serilog.Events;
 using PepperDash.Core.Logging;
 using PepperDash.Essentials.Core;
+using PepperDash.Essentials.Core.DeviceTypeInterfaces;
 using PepperDash.Essentials.Core.Bridges;
 using PepperDash.Essentials.Core.Config;
 using PepperDash.Essentials.Core.Devices;
@@ -18,7 +19,8 @@ using RequestType = Crestron.SimplSharp.Net.Https.RequestType;
 
 namespace PepperDash.Essentials.Plugins
 {
-    public class PanoptoCloudController : ReconfigurableBridgableDevice, ICommunicationMonitor
+    public class PanoptoCloudController : ReconfigurableBridgableDevice, ICommunicationMonitor,
+        IHasRecordingControl, IHasRecordingInfo, IHasPolling
     {
         private readonly string _url;
         private readonly string _username;
@@ -201,6 +203,11 @@ namespace PepperDash.Essentials.Plugins
                 IsRecording.FireUpdate();
                 IsPaused.FireUpdate();
                 RecorderStatusString.FireUpdate();
+
+                // RecorderStatusInt is the recorder own state, which is what RecordingState reads,
+                // so this is the one place it can change.
+                var recordingStateChanged = RecordingStateChanged;
+                if (recordingStateChanged != null) recordingStateChanged(this, EventArgs.Empty);
             };
 
             CurrentRecordingEndTime.OutputChange += (sender, args) =>
@@ -386,6 +393,81 @@ namespace PepperDash.Essentials.Plugins
             // poll did nothing at all.
             return !_recorder.Id.Equals(Guid.Empty);
         }
+
+        #region IHasRecordingControl / IHasRecordingInfo / IHasPolling
+
+        /// <inheritdoc />
+        public event EventHandler RecordingStateChanged;
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Mapped from the remote recorder own state. Faulted, Blocked and Disconnected all become
+        /// Offline: each means the recorder cannot be relied on to be capturing, and reporting Idle
+        /// would say the room is simply not recording when in fact nobody knows. Previewing is
+        /// Idle, since the recorder is live but committing nothing.
+        /// </remarks>
+        public eRecordingState RecordingState
+        {
+            get
+            {
+                if (_recorder == null) return eRecordingState.Offline;
+
+                switch (_recorder.State)
+                {
+                    case RemoteRecorderState.Recording:
+                        return eRecordingState.Recording;
+                    case RemoteRecorderState.Paused:
+                        return eRecordingState.Paused;
+                    case RemoteRecorderState.Stopped:
+                    case RemoteRecorderState.Previewing:
+                        return eRecordingState.Idle;
+                    default:
+                        return eRecordingState.Offline;
+                }
+            }
+        }
+
+        /// <inheritdoc />
+        public string RecordingTitle
+        {
+            get { return _currentRecordingName ?? String.Empty; }
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Read from the stored time rather than parsed back out of CurrentRecordingEndTime, which
+        /// formats for display and would have to be read back through whatever culture happens to
+        /// be current.
+        /// </remarks>
+        public DateTime? RecordingEndTime
+        {
+            get { return _currentRecordingId == Guid.Empty ? (DateTime?)null : _currentRecordingEndTime; }
+        }
+
+        /// <inheritdoc />
+        public int RecordingLengthMinutes
+        {
+            get { return _defaultLength; }
+        }
+
+        /// <inheritdoc />
+        public void SetRecordingLength(int minutes)
+        {
+            SetDefaultLength((ushort)(minutes < 0 ? 0 : minutes));
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Reads the recorder and, when one is running, the recording itself. Both block on HTTP
+        /// and share one client with this device own polling, so callers should not overlap them.
+        /// </remarks>
+        public void Poll()
+        {
+            PollRecorder();
+            PollCurrentRecording();
+        }
+
+        #endregion
 
         public void StartRecording()
         {
