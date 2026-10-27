@@ -14,7 +14,11 @@ namespace PepperDash.Essentials.Plugins
         public override void Start()
         {
             _isStarted = true;
-            UpdateTimers();
+
+            if (Status == MonitorStatus.IsOk)
+                StopErrorTimers();
+            else
+                StartErrorTimers();
         }
 
         public override void Stop()
@@ -23,31 +27,28 @@ namespace PepperDash.Essentials.Plugins
             StopErrorTimers();
         }
 
+        /// <summary>
+        /// Report the outcome of a request.
+        /// </summary>
+        /// <remarks>
+        /// A failure starts the warning and error timers rather than changing the status itself, so
+        /// one slow reply does not take the recorder offline but a server that stays silent does.
+        /// <see cref="StatusMonitorBase.IsOnline"/> follows the status — it used to be written
+        /// straight from each reply, while the status itself stuck at OK after the first success.
+        /// </remarks>
         public void SetOnlineStatus(bool isOnline)
         {
-            IsOnline = isOnline;
-
-            if (IsOnline)
+            if (isOnline)
             {
                 Status = MonitorStatus.IsOk;
-            }
-
-            UpdateTimers();
-        }
-
-        public void UpdateTimers()
-        {
-            if (!_isStarted)
-                return;
-
-            if (Status == MonitorStatus.IsOk)
-            {
                 StopErrorTimers();
+                return;
             }
-            else
-            {
+
+            // StartErrorTimers leaves timers that are already running alone, so repeated failures
+            // count from the first one.
+            if (_isStarted)
                 StartErrorTimers();
-            }
         }
     }
 }

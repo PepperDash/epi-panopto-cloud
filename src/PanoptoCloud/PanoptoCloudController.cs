@@ -1,27 +1,30 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using Crestron.SimplSharp;
-using Crestron.SimplSharp.CrestronIO;
-using Crestron.SimplSharp.Net.Https;
 using Crestron.SimplSharpPro.DeviceSupport;
 using Newtonsoft.Json;
 using PepperDash.Core;
-using Serilog.Events;
 using PepperDash.Core.Logging;
 using PepperDash.Essentials.Core;
 using PepperDash.Essentials.Core.DeviceTypeInterfaces;
 using PepperDash.Essentials.Core.Bridges;
 using PepperDash.Essentials.Core.Config;
 using PepperDash.Essentials.Core.Devices;
-using RequestType = Crestron.SimplSharp.Net.Https.RequestType;
 
 namespace PepperDash.Essentials.Plugins
 {
     public class PanoptoCloudController : ReconfigurableBridgableDevice, ICommunicationMonitor,
         IHasRecordingControl, IHasRecordingInfo, IHasPolling
     {
+        /// <summary>How long to wait for Panopto. It is a cloud service, so this is more forgiving
+        /// than a device on the LAN — but finite, where the Crestron client waited a minute.</summary>
+        private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
+
         private readonly string _url;
         private readonly string _username;
         private readonly string _password;
@@ -41,8 +44,27 @@ namespace PepperDash.Essentials.Plugins
 
         private readonly PanoptoCloudStatusMonitor _monitor;
 
-        private string _token;
+        /// <summary>
+        /// Shared by every request this device makes.
+        /// </summary>
+        /// <remarks>
+        /// System.Net.Http rather than the Crestron client, which handles one request at a time: the
+        /// recorder poll, the recording timer, the room's reads after a command and the commands
+        /// themselves all run on different threads, and this client is built for that.
+        /// </remarks>
+        private readonly HttpClient _http;
+
+        private volatile string _token;
         private RecoderInfo _recorder = new RecoderInfo();
+
+        /// <summary>1 while the recorder or the current recording is being read. See
+        /// <see cref="PollRecorder"/>.</summary>
+        private int _pollingRecorder;
+        private int _pollingRecording;
+
+        /// <summary>The last token problem logged, so a missing client id or an unreachable server
+        /// is reported once rather than every ten seconds.</summary>
+        private string _lastTokenProblem;
 
         private int _defaultLength = 90;
         private Guid _currentRecordingId;
@@ -65,25 +87,17 @@ namespace PepperDash.Essentials.Plugins
         public readonly StringFeedback CurrentRecordingMinutesRemaining;
         public readonly IntFeedback DefaultLength;
         public readonly BoolFeedback NextRecordingExists;
-        public readonly HttpsClient Client;
 
         static PanoptoCloudController()
         {
             CrestronConsole.AddNewConsoleCommand(
                 s =>
                 {
-                    var splitString = s.Split(':');
-                    var device =
-                        DeviceManager.AllDevices.OfType<PanoptoCloudController>().
-                            FirstOrDefault(x => x.Key.Equals(splitString[0], StringComparison.OrdinalIgnoreCase));
-
+                    string clientId;
+                    var device = FindForConsole(s, out clientId);
                     if (device == null)
-                    {
-                        CrestronConsole.ConsoleCommandResponse("Device not found");
                         return;
-                    }
 
-                    var clientId = splitString[1];
                     if (String.IsNullOrEmpty(clientId))
                     {
                         CrestronConsole.ConsoleCommandResponse("Client Id cannot be blank");
@@ -125,18 +139,11 @@ namespace PepperDash.Essentials.Plugins
             CrestronConsole.AddNewConsoleCommand(
                 s =>
                 {
-                    var splitString = s.Split(':');
-                    var device =
-                        DeviceManager.AllDevices.OfType<PanoptoCloudController>().
-                            FirstOrDefault(x => x.Key.Equals(splitString[0], StringComparison.OrdinalIgnoreCase));
-
+                    string clientSecret;
+                    var device = FindForConsole(s, out clientSecret);
                     if (device == null)
-                    {
-                        CrestronConsole.ConsoleCommandResponse("Device not found");
                         return;
-                    }
 
-                    var clientSecret = splitString[1];
                     if (String.IsNullOrEmpty(clientSecret))
                     {
                         CrestronConsole.ConsoleCommandResponse("Client Secret cannot be blank");
@@ -145,6 +152,28 @@ namespace PepperDash.Essentials.Plugins
                     device.SetClientSecret(clientSecret);
 
                 }, "PANOPTOSECRET", "Format: [Device_Key]:[Client_Secret]", ConsoleAccessLevelEnum.AccessAdministrator);
+        }
+
+        /// <summary>
+        /// Split "key:value" console input and find the device.
+        /// </summary>
+        /// <remarks>
+        /// Splits on the first colon only. A client secret may contain colons, and splitting on all
+        /// of them stored whatever came before the second one.
+        /// </remarks>
+        private static PanoptoCloudController FindForConsole(string input, out string value)
+        {
+            var parts = (input ?? String.Empty).Split(new[] { ':' }, 2);
+            value = parts.Length > 1 ? parts[1].Trim() : String.Empty;
+
+            var device =
+                DeviceManager.AllDevices.OfType<PanoptoCloudController>().
+                    FirstOrDefault(x => x.Key.Equals(parts[0].Trim(), StringComparison.OrdinalIgnoreCase));
+
+            if (device == null)
+                CrestronConsole.ConsoleCommandResponse("Device not found");
+
+            return device;
         }
 
         public PanoptoCloudController(DeviceConfig config)
@@ -191,9 +220,14 @@ namespace PepperDash.Essentials.Plugins
 
             IsOnline = new BoolFeedback(() => _monitor.IsOnline);
 
-            Client = new HttpsClient().WithDefaultSettings();
+            var handler = new HttpClientHandler
+            {
+                // Unchanged from the Crestron client this replaces, which had peer and host
+                // verification off.
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            };
 
-            Client.PeerVerification = false;
+            _http = new HttpClient(handler) { Timeout = RequestTimeout };
         }
 
         protected override bool CustomActivate()
@@ -204,10 +238,8 @@ namespace PepperDash.Essentials.Plugins
                 IsPaused.FireUpdate();
                 RecorderStatusString.FireUpdate();
 
-                // RecorderStatusInt is the recorder own state, which is what RecordingState reads,
-                // so this is the one place it can change.
-                var recordingStateChanged = RecordingStateChanged;
-                if (recordingStateChanged != null) recordingStateChanged(this, EventArgs.Empty);
+                // RecorderStatusInt is the recorder own state, which is what RecordingState reads.
+                RaiseRecordingStateChanged();
             };
 
             CurrentRecordingEndTime.OutputChange += (sender, args) =>
@@ -272,7 +304,38 @@ namespace PepperDash.Essentials.Plugins
 
         protected override void Initialize()
         {
+            _monitor.StatusChange += OnMonitorStatusChange;
+            _monitor.Start();
+
             _pollTimer.Reset(5000, 10000);
+        }
+
+        /// <summary>
+        /// Say once when Panopto stops or starts answering, and forget the recorder's state once
+        /// it has been silent long enough to be called offline.
+        ///
+        /// <para>The poll keeps the last good answer through a failed request, so one slow reply
+        /// does not flicker the panel to "not responding". That makes this the place stale state
+        /// is dropped.</para>
+        /// </summary>
+        private void OnMonitorStatusChange(object sender, MonitorStatusChangeEventArgs args)
+        {
+            IsOnline.FireUpdate();
+
+            switch (args.Status)
+            {
+                case MonitorStatus.IsOk:
+                    this.LogInformation("Panopto is answering");
+                    break;
+                case MonitorStatus.InWarning:
+                    this.LogWarning("Panopto is not answering");
+                    break;
+                case MonitorStatus.InError:
+                    this.LogWarning("Panopto is offline; clearing the recorder's last state");
+                    _recorder = new RecoderInfo();
+                    RecorderStatusInt.FireUpdate();
+                    break;
+            }
         }
 
         public bool CheckTokenAndUpdate()
@@ -289,32 +352,46 @@ namespace PepperDash.Essentials.Plugins
                 string clientId;
                 if (!Utils.TryGetValueFromSecureStorage(Key + "-" + "ClientId", out clientId))
                 {
-                    this.LogInformation("Client Id not set");
+                    ReportTokenProblem("Client Id not set");
                     return false;
                 }
 
                 string clientSecret;
                 if (!Utils.TryGetValueFromSecureStorage(Key + "-" + "ClientSecret", out clientSecret))
                 {
-                    this.LogInformation("Client Secret not set");
+                    ReportTokenProblem("Client Secret not set");
                     return false;
                 }
 
-                this.LogInformation("Getting token...");
-                var token = PanoptoOauthClient.GetToken(url, _username, _password, clientId, clientSecret);
+                this.LogDebug("Getting token...");
+                var token = PanoptoOauthClient.GetToken(_http, url, _username, _password, clientId, clientSecret);
                 _token = token.AccessToken;
 
                 var expireTime = token.ExpiresIn * 1000 - 500;
                 _oauthTimer.Reset(expireTime);
-                this.LogInformation("Success!  Token expires at: {0}", DateTime.Now.AddMilliseconds(expireTime).ToShortTimeString());
+
+                _lastTokenProblem = null;
+                this.LogDebug("Token expires at: {0}", DateTime.Now.AddMilliseconds(expireTime).ToShortTimeString());
                 return true;
             }
             catch (Exception ex)
             {
                 _oauthTimer.Reset();
-                this.LogInformation("Caught an error getting the token: {0}{1}", ex.Message, ex.StackTrace);
+                ReportTokenProblem("Error getting the token: " + ex.Message);
                 return false;
             }
+        }
+
+        private void ReportTokenProblem(string problem)
+        {
+            if (problem == _lastTokenProblem)
+            {
+                this.LogDebug("{0}", problem);
+                return;
+            }
+
+            _lastTokenProblem = problem;
+            this.LogWarning("{0}", problem);
         }
 
         public void SetDeviceName(string name)
@@ -360,17 +437,48 @@ namespace PepperDash.Essentials.Plugins
             DefaultLength.FireUpdate();
         }
 
+        /// <summary>
+        /// Read the remote recorder. True means it was found.
+        /// </summary>
+        /// <remarks>
+        /// Single-flight: the ten-second timer, the room's reads after a command and a command
+        /// that needs the recorder can all arrive at once, and a read queued behind another only
+        /// brings back what the first just read. A caller that arrives mid-read gets the answer as
+        /// it stands.
+        /// </remarks>
         public bool PollRecorder()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _pollingRecorder, 1) == 1)
+                return !_recorder.Id.Equals(Guid.Empty);
+
+            try
+            {
+                return ReadRecorder();
+            }
+            catch (Exception ex)
+            {
+                this.LogError(ex, "Error polling recorder");
+                return !_recorder.Id.Equals(Guid.Empty);
+            }
+            finally
+            {
+                System.Threading.Interlocked.Exchange(ref _pollingRecorder, 0);
+            }
+        }
+
+        private bool ReadRecorder()
         {
             if (!CheckTokenAndUpdate())
             {
-                this.LogInformation("Cannot poll recorder; no token");
+                // Without a token there is no talking to Panopto, which is offline as far as this
+                // room is concerned — whether the server is down or the credentials are missing.
+                _monitor.SetOnlineStatus(false);
                 return false;
             }
 
             if (String.IsNullOrEmpty(Name))
             {
-                this.LogInformation("Cannot poll recorder, recorder name is not set");
+                this.LogDebug("Cannot poll recorder, recorder name is not set");
                 return false;
             }
 
@@ -381,22 +489,34 @@ namespace PepperDash.Essentials.Plugins
                 ? GetRecorderById(_recorder.Id)
                 : null;
 
-            _recorder = byId ?? GetRecorder(Name, _url, _token) ?? new RecoderInfo();
+            var found = byId ?? GetRecorder(Name, _url, _token);
+
+            if (found == null)
+            {
+                // The read failed rather than finding nothing. Keep what we knew: replacing it
+                // with an empty recorder turned every dropped request into Offline and back, and
+                // threw away the id. The monitor clears it if this goes on.
+                return !_recorder.Id.Equals(Guid.Empty);
+            }
+
+            _recorder = found;
 
             RecorderStatusInt.FireUpdate();
 
-            this.LogInformation("Recorder Status:\r{0}", JsonConvert.SerializeObject(_recorder, Formatting.Indented));
+            this.LogVerbose("Recorder Status:\r{0}", JsonConvert.SerializeObject(_recorder, Formatting.Indented));
 
-            // True means the recorder was found. This used to return the opposite, which inverted
-            // both callers: "if (id is empty && !PollRecorder()) return;" gave up precisely when
-            // the poll had just succeeded, so a stop or extend issued before the first background
-            // poll did nothing at all.
             return !_recorder.Id.Equals(Guid.Empty);
         }
 
         #region IHasRecordingControl / IHasRecordingInfo / IHasPolling
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Also raised when the current recording's title or end time changes, not only the state.
+        /// <see cref="IHasRecordingInfo"/> has no event of its own, so without this an extend, or a
+        /// recording this device has only just learned about, reached the room only when something
+        /// else happened to make it look.
+        /// </remarks>
         public event EventHandler RecordingStateChanged;
 
         /// <inheritdoc />
@@ -457,10 +577,6 @@ namespace PepperDash.Essentials.Plugins
         }
 
         /// <inheritdoc />
-        /// <remarks>
-        /// Reads the recorder and, when one is running, the recording itself. Both block on HTTP
-        /// and share one client with this device own polling, so callers should not overlap them.
-        /// </remarks>
         public void Poll()
         {
             PollRecorder();
@@ -469,16 +585,41 @@ namespace PepperDash.Essentials.Plugins
 
         #endregion
 
+        private void RaiseRecordingStateChanged()
+        {
+            var handler = RecordingStateChanged;
+            if (handler == null)
+                return;
+
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                // A subscriber throwing must not stop the poll that raised this.
+                this.LogError(ex, "Error raising RecordingStateChanged");
+            }
+        }
+
         public void StartRecording()
         {
-            if (_recorder.Id.Equals(Guid.Empty))
-                PollRecorder();
-
-            if (_recorder.Id.Equals(Guid.Empty))
+            if (!CheckTokenAndUpdate())
+            {
+                this.LogWarning("Cannot start recording; no token");
                 return;
+            }
+
+            if (_recorder.Id.Equals(Guid.Empty) && !PollRecorder())
+            {
+                this.LogWarning("Cannot start recording; recorder '{0}' not found", Name);
+                return;
+            }
 
             const string path = "/Panopto/api/v1/scheduledRecordings?resolveConflicts=false";
             var url = String.Format("{0}{1}", _url, path);
+
+            var folder = _recorder.DefaultRecordingFolder;
 
             var body = new StartRecordingRequest
             {
@@ -487,31 +628,29 @@ namespace PepperDash.Essentials.Plugins
                 Recorders = new List<Recorder> { new Recorder { RemoteRecorderId = _recorder.Id } },
                 StartTime = DateTime.UtcNow,
                 EndTime = DateTime.UtcNow.AddMinutes(_defaultLength),
-                FolderId = _recorder.DefaultRecordingFolder.Id
+                FolderId = folder != null ? folder.Id : Guid.Empty
             };
 
-            var request = GetDefaultRequestWithAuthHeaders(url, _token, RequestType.Post);
+            this.LogInformation("Attempting to start recording");
 
-            request.ContentString = JsonConvert.SerializeObject(body);
-            request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
-
-            this.LogInformation("Attempting to start recording:{0}]\r{1}", request.Url.Url, request.ContentString);
-
-                try
-                {
-                    Client.PeerVerification = false;
-                    var result = Client.Dispatch(request);
-                    ProcessCurrentRecording(result);
-                }
-                catch (Exception ex)
-                {
-                    this.LogInformation("Error starting recording {0}", ex.Message);
-                }
-            
+            try
+            {
+                ProcessCurrentRecording(Send(HttpMethod.Post, url, _token, body));
+            }
+            catch (Exception ex)
+            {
+                this.LogError(ex, "Error starting recording");
+            }
         }
 
         public void StopRecording()
         {
+            if (!CheckTokenAndUpdate())
+            {
+                this.LogWarning("Cannot stop recording; no token");
+                return;
+            }
+
             if (_recorder.Id.Equals(Guid.Empty) && !PollRecorder())
                 return;
 
@@ -529,24 +668,16 @@ namespace PepperDash.Essentials.Plugins
                 EndTime = DateTime.UtcNow,
             };
 
-            var request = GetDefaultRequestWithAuthHeaders(url, _token, RequestType.Put);
+            this.LogInformation("Attempting to stop recording {0}", _currentRecordingId);
 
-            request.ContentString = JsonConvert.SerializeObject(body);
-            request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
-
-            this.LogInformation("Attempting to stop recording:{0}\r{1}", request.Url.Url, request.ContentString);
-
-                try
-                {
-                    Client.PeerVerification = false;
-                    var result = Client.Dispatch(request);
-                    ProcessCurrentRecording(result);
-                }
-                catch (Exception ex)
-                {
-                    this.LogInformation("Error stopping recording {0}", ex.Message);
-                }
-            
+            try
+            {
+                ProcessCurrentRecording(Send(HttpMethod.Put, url, _token, body));
+            }
+            catch (Exception ex)
+            {
+                this.LogError(ex, "Error stopping recording");
+            }
         }
 
         public void PauseRecording()
@@ -567,6 +698,12 @@ namespace PepperDash.Essentials.Plugins
 
         public void ExtendRecording(int minutes)
         {
+            if (!CheckTokenAndUpdate())
+            {
+                this.LogWarning("Cannot extend recording; no token");
+                return;
+            }
+
             if (_recorder.Id.Equals(Guid.Empty) && !PollRecorder())
                 return;
 
@@ -579,93 +716,99 @@ namespace PepperDash.Essentials.Plugins
             const string path = "{0}/Panopto/api/v1/scheduledRecordings/{1}?resolveConflicts=false";
             var url = String.Format(path, _url, _currentRecordingId);
 
-            var request = GetDefaultRequestWithAuthHeaders(url, _token, RequestType.Put);
             var body = new
             {
                 EndTime = _currentRecordingEndTime.AddMinutes(minutes)
             };
 
-            request.ContentString = JsonConvert.SerializeObject(body);
-            request.Header.AddHeader(new HttpsHeader("Content-Type", "application/json"));
-
-            this.LogInformation("Attempting to extend recording:{0} {1}", request.Url.Url, request.ContentString);
-                try
-                {
-                    Client.PeerVerification = false;
-                    var result = Client.Dispatch(request);
-                    ProcessCurrentRecording(result);
-                }
-                catch (Exception ex)
-                {
-                    this.LogInformation("Error extending recording {0}", ex.Message);
-                }
-           
-        }
-
-        public void PollCurrentRecording()
-        {
-            if (_recorder.Id == Guid.Empty && !PollRecorder())
-                return;
-
-            if (_currentRecordingId == Guid.Empty)
-            {
-                this.LogInformation("Cannot get recording, current recording id is not set");
-                return;
-            }
-
-            const string path = "{0}/Panopto/api/v1/scheduledRecordings/{1}";
-            var url = String.Format(path, _url, _currentRecordingId);
-
-            var request = GetDefaultRequestWithAuthHeaders(url, _token, RequestType.Get);
-
-            this.LogInformation("Polling current recording:{0}", request.Url.Url);
+            this.LogInformation("Attempting to extend recording {0} by {1} minutes", _currentRecordingId, minutes);
 
             try
             {
-                Client.PeerVerification = false;
-                var result = Client.Dispatch(request);
-                if (result != null)
-                {
-                    ProcessCurrentRecording(result);
-                }
+                ProcessCurrentRecording(Send(HttpMethod.Put, url, _token, body));
             }
             catch (Exception ex)
             {
-                this.LogInformation("Error polling recording {0}", ex.Message);
+                this.LogError(ex, "Error extending recording");
             }
-            
         }
 
-        public void ProcessCurrentRecording(HttpsClientResponse response)
+        /// <summary>Read the recording this device started. Single-flight, like
+        /// <see cref="PollRecorder"/>.</summary>
+        public void PollCurrentRecording()
         {
-            if (response.Code != 200)
+            if (System.Threading.Interlocked.Exchange(ref _pollingRecording, 1) == 1)
+                return;
+
+            try
             {
-                this.LogInformation("Error processing recording... Code:{0}\r{1}", response.Code, response.ContentString);
+                if (_recorder.Id == Guid.Empty && !PollRecorder())
+                    return;
+
+                if (_currentRecordingId == Guid.Empty)
+                {
+                    this.LogVerbose("No current recording to read");
+                    return;
+                }
+
+                if (!CheckTokenAndUpdate())
+                    return;
+
+                const string path = "{0}/Panopto/api/v1/scheduledRecordings/{1}";
+                var url = String.Format(path, _url, _currentRecordingId);
+
+                this.LogVerbose("Polling current recording:{0}", url);
+
+                ProcessCurrentRecording(Send(HttpMethod.Get, url, _token, null));
+            }
+            catch (Exception ex)
+            {
+                this.LogDebug("Error polling recording {0}", ex.Message);
+            }
+            finally
+            {
+                System.Threading.Interlocked.Exchange(ref _pollingRecording, 0);
+            }
+        }
+
+        public void ProcessCurrentRecording(PanoptoResponse response)
+        {
+            var before = RecordingInfoSignature();
+
+            if (response == null)
+            {
+                // Nothing came back. Try again shortly, as for any other failure.
+                _recordingTimer.Reset(5000);
+            }
+            else if (response.Code == 404)
+            {
+                // The session is gone. This used to fall into the branch below and ask again every
+                // five seconds for as long as the processor stayed up.
+                this.LogInformation("Recording {0} no longer exists; clearing", _currentRecordingId);
+                ClearCurrentRecording();
+            }
+            else if (response.Code != 200)
+            {
+                this.LogDebug("Error processing recording... Code:{0}\r{1}", response.Code, response.Content);
                 _recordingTimer.Reset(5000);
             }
             else
             {
-                {
-                    var currentRecording = JsonConvert.DeserializeObject<ScheduledRecording>(response.ContentString);
-                    this.LogDebug("Processing recording...\r{0}", JsonConvert.SerializeObject(currentRecording, Formatting.Indented));
-                    this.LogDebug("Start time:{0}", currentRecording.StartTime.ToShortTimeString());
-                    this.LogDebug("End time:{0}", currentRecording.EndTime.ToShortTimeString());
+                var currentRecording = JsonConvert.DeserializeObject<ScheduledRecording>(response.Content);
+                this.LogVerbose("Processing recording...\r{0}", JsonConvert.SerializeObject(currentRecording, Formatting.Indented));
 
-                    if (DateTime.UtcNow >= currentRecording.EndTime.ToUniversalTime())
-                    {
-                        this.LogInformation("Recording is over... clearing");
-                        _currentRecordingId = Guid.Empty;
-                        _currentRecordingName = String.Empty;
-                        _recordingTimer.Stop();
-                    }
-                    else
-                    {
-                        _currentRecordingId = currentRecording.Id;
-                        _currentRecordingName = currentRecording.Name;
-                        _currentRecordingStartTime = currentRecording.StartTime;
-                        _currentRecordingEndTime = currentRecording.EndTime;
-                        _recordingTimer.Reset(5000);
-                    }
+                if (DateTime.UtcNow >= currentRecording.EndTime.ToUniversalTime())
+                {
+                    this.LogInformation("Recording is over... clearing");
+                    ClearCurrentRecording();
+                }
+                else
+                {
+                    _currentRecordingId = currentRecording.Id;
+                    _currentRecordingName = currentRecording.Name;
+                    _currentRecordingStartTime = currentRecording.StartTime;
+                    _currentRecordingEndTime = currentRecording.EndTime;
+                    _recordingTimer.Reset(5000);
                 }
             }
 
@@ -673,6 +816,22 @@ namespace PepperDash.Essentials.Plugins
             CurrentRecordingEndTime.FireUpdate();
             CurrentRecordingName.FireUpdate();
             CurrentRecordingId.FireUpdate();
+
+            if (RecordingInfoSignature() != before)
+                RaiseRecordingStateChanged();
+        }
+
+        private void ClearCurrentRecording()
+        {
+            _currentRecordingId = Guid.Empty;
+            _currentRecordingName = String.Empty;
+            _recordingTimer.Stop();
+        }
+
+        /// <summary>What <see cref="IHasRecordingInfo"/> reports, as one value to compare.</summary>
+        private string RecordingInfoSignature()
+        {
+            return String.Join("|", _currentRecordingId, _currentRecordingName, _currentRecordingEndTime.Ticks);
         }
 
         /// <summary>
@@ -695,44 +854,41 @@ namespace PepperDash.Essentials.Plugins
 
             var fullUrl = String.Format("{0}/Panopto/api/v1/remoteRecorders/{1}", _url, id);
 
+            var response = Send(HttpMethod.Get, fullUrl, _token, null);
+
+            if (response == null)
+                return null;
+
+            // 405 is unambiguous: the path is there and GET is not allowed on it. A 404 is
+            // not — it means "no such endpoint" only until a by-id read has once succeeded,
+            // after which it means this recorder has been deleted or replaced, and the answer
+            // is to search by name again rather than to give up on the cheap call forever.
+            if (response.Code == 405 || (response.Code == 404 && !_byIdWorked))
+            {
+                this.LogInformation(
+                    "Reading a recorder by id is not available here (code {0}); using search from now on",
+                    response.Code);
+                _byIdUnavailable = true;
+                return null;
+            }
+
+            if (response.Code == 404)
+            {
+                this.LogInformation("Recorder {0} is no longer there; searching by name", id);
+                return null;
+            }
+
+            if (response.Code != 200)
+            {
+                this.LogDebug("Recorder by id returned {0}; falling back to search", response.Code);
+                return null;
+            }
+
+            _monitor.SetOnlineStatus(true);
+
             try
             {
-                Client.PeerVerification = false;
-                var request = GetDefaultRequestWithAuthHeaders(fullUrl, _token, RequestType.Get);
-                var response = Client.Dispatch(request);
-
-                if (response == null)
-                    return null;
-
-                // 405 is unambiguous: the path is there and GET is not allowed on it. A 404 is
-                // not — it means "no such endpoint" only until a by-id read has once succeeded,
-                // after which it means this recorder has been deleted or replaced, and the answer
-                // is to search by name again rather than to give up on the cheap call forever.
-                if (response.Code == 405 || (response.Code == 404 && !_byIdWorked))
-                {
-                    this.LogInformation(
-                        "Reading a recorder by id is not available here (code {0}); using search from now on",
-                        response.Code);
-                    _byIdUnavailable = true;
-                    return null;
-                }
-
-                if (response.Code == 404)
-                {
-                    this.LogInformation("Recorder {0} is no longer there; searching by name", id);
-                    return null;
-                }
-
-                if (response.Code != 200)
-                {
-                    this.LogDebug("Recorder by id returned {0}; falling back to search", response.Code);
-                    return null;
-                }
-
-                _monitor.SetOnlineStatus(true);
-                IsOnline.FireUpdate();
-
-                var recorder = JsonConvert.DeserializeObject<RecoderInfo>(response.ContentString);
+                var recorder = JsonConvert.DeserializeObject<RecoderInfo>(response.Content);
 
                 // A body that parses but carries no id is not this recorder — treat it as a miss
                 // rather than overwriting a good one with an empty shell.
@@ -744,70 +900,107 @@ namespace PepperDash.Essentials.Plugins
             }
             catch (Exception ex)
             {
-                this.LogDebug("Error reading recorder by id, falling back to search: {0}", ex.Message);
+                this.LogDebug("Unreadable recorder by id, falling back to search: {0}", ex.Message);
                 return null;
             }
         }
 
+        /// <summary>
+        /// Search for the recorder by name.
+        /// </summary>
+        /// <returns>The recorder; an empty <see cref="RecoderInfo"/> when the search worked and
+        /// found no such recorder; or null when the search itself failed. The last two used to be
+        /// the same answer, so a failed request wiped the recorder.</returns>
         public RecoderInfo GetRecorder(string name, string url, string token)
         {
-            var defaultRecorderInfo = new RecoderInfo();
             if (String.IsNullOrEmpty(name) || String.IsNullOrEmpty(token))
-                return defaultRecorderInfo;
+                return null;
 
             const string path = "/Panopto/api/v1/remoteRecorders/search";
-            var fullUrl = String.Format("{0}{1}?searchQuery={2}", url, path, name);
+            var fullUrl = String.Format("{0}{1}?searchQuery={2}", url, path, Uri.EscapeDataString(name));
 
-            Debug.LogMessage(LogEventLevel.Information, "Searching for recorder name:{0}...", name);
- 
-                try
+            this.LogVerbose("Searching for recorder name:{0}...", name);
+
+            var response = Send(HttpMethod.Get, fullUrl, token, null);
+
+            if (response == null || response.Code != 200)
+            {
+                _monitor.SetOnlineStatus(false);
+                return null;
+            }
+
+            _monitor.SetOnlineStatus(true);
+
+            try
+            {
+                return ParseRecordingInfo(name, response.Content);
+            }
+            catch (Exception ex)
+            {
+                this.LogDebug("Unreadable recorder search: {0}", ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>Pick the named recorder out of a search result. Null when the body is not a
+        /// search result; an empty <see cref="RecoderInfo"/> when it is and the recorder is not
+        /// in it.</summary>
+        public static RecoderInfo ParseRecordingInfo(string name, string content)
+        {
+            var results = JsonConvert.DeserializeObject<RemoteRecoderSearchResult>(content);
+
+            if (results == null || results.Results == null)
+                return null;
+
+            return results.Results.FirstOrDefault(r => r.Name != null && r.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ??
+                   new RecoderInfo();
+        }
+
+        /// <summary>
+        /// Send a request to Panopto and read the reply in full, or null if nothing came back.
+        /// </summary>
+        /// <remarks>
+        /// A 401 drops the token, so the next call fetches a new one rather than failing until the
+        /// expiry timer would have — a token can be revoked or expire early on the server's side.
+        /// </remarks>
+        private PanoptoResponse Send(HttpMethod method, string url, string token, object body)
+        {
+            try
+            {
+                using (var request = new HttpRequestMessage(method, url))
                 {
-                    Client.PeerVerification = false;
-                    var request = GetDefaultRequestWithAuthHeaders(fullUrl, token, RequestType.Get);
-                    var response = Client.Dispatch(request);
+                    if (!String.IsNullOrEmpty(token))
+                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                    if (response != null)
+                    if (body != null)
                     {
-                        var responseCode = response.Code;
-
-                        _monitor.SetOnlineStatus(responseCode == 200 && responseCode != 401);
-             
-                        IsOnline.FireUpdate();
-
-                        return ParseRecordingInfo(name, response);
+                        var json = JsonConvert.SerializeObject(body);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        this.LogVerbose("{0} {1}\r{2}", method, url, json);
                     }
-                    _monitor.SetOnlineStatus(false);
-                       IsOnline.FireUpdate();
-                    return _recorder;
+
+                    using (var response = _http.Send(request))
+                    using (var reader = new StreamReader(response.Content.ReadAsStream()))
+                    {
+                        var result = new PanoptoResponse((int)response.StatusCode, reader.ReadToEnd());
+
+                        if (result.Code == 401)
+                        {
+                            this.LogDebug("Panopto refused the token; fetching a new one next time");
+                            _token = String.Empty;
+                        }
+
+                        return result;
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Debug.LogMessage(LogEventLevel.Information, "Error searching for recorder {0}{1}", ex.Message, ex.StackTrace);
-                    return defaultRecorderInfo;
-                } 
-            
-        }
-
-        public static RecoderInfo ParseRecordingInfo(string name, HttpsClientResponse response)
-        {
-            if (response == null)
-            {
-                Debug.LogMessage(LogEventLevel.Debug, "Error response is null");
-                return new RecoderInfo();
             }
+            catch (Exception ex)
             {
-                var results = JsonConvert.DeserializeObject<RemoteRecoderSearchResult>(response.ContentString);
-                return results.Results.FirstOrDefault(r => r.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ??
-                       new RecoderInfo();
+                // Debug, not Error: an unreachable server fails every request of every poll, and the
+                // communication monitor already says so once when it goes offline.
+                this.LogDebug("{0} {1} failed: {2}", method, url, ex.Message);
+                return null;
             }
-        }
-
-        public static HttpsClientRequest GetDefaultRequestWithAuthHeaders(string url, string token, RequestType type)
-        {
-            var request = new HttpsClientRequest { RequestType = type };
-            request.Header.AddHeader(new HttpsHeader("Authorization", "Bearer " + token));
-            request.Url.Parse(url);
-            return request;
         }
 
         public override void LinkToApi(BasicTriList trilist, uint joinStart, string joinMapKey, EiscApiAdvanced bridge)
@@ -844,7 +1037,7 @@ namespace PepperDash.Essentials.Plugins
 
         public StatusMonitorBase CommunicationMonitor { get { return _monitor; } }
 
-        public class PanoptoCloudControllerProperties 
+        public class PanoptoCloudControllerProperties
         {
             public string Url { get; set; }
             public string Username { get; set; }
@@ -854,4 +1047,3 @@ namespace PepperDash.Essentials.Plugins
         }
     }
 }
-

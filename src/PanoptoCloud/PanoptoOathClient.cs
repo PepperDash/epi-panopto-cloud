@@ -1,44 +1,47 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
-using Crestron.SimplSharp.Net.Https;
 using Newtonsoft.Json;
 
 namespace PepperDash.Essentials.Plugins
 {
     public static class PanoptoOauthClient
     {
-        public static TokenResponse GetToken(string url, string username, string password, string clientId, string clientPassword)
+        /// <summary>
+        /// Fetch an access token with the password grant.
+        /// </summary>
+        /// <remarks>
+        /// The form is URL-encoded by <see cref="FormUrlEncodedContent"/>. It used to be assembled
+        /// with string.Format, so a password containing <c>&amp;</c>, <c>+</c> or <c>=</c> was
+        /// sent as something else and the token request failed.
+        /// </remarks>
+        public static TokenResponse GetToken(HttpClient client, string url, string username, string password, string clientId, string clientPassword)
         {
-            using (var client = new HttpsClient())
+            using (var request = new HttpRequestMessage(HttpMethod.Post, url))
             {
-                client.PeerVerification = false;
-                var request = BuildRequest(url, username, password, clientId, clientPassword);
-                var response = client.Dispatch(request);
-                if (response == null)
-                    throw new NullReferenceException("response");
-                if (response.Code != 200)
-                    throw new Exception(string.Format("Error getting token: {0} {1}", response.Code, response.ContentString));
+                request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Base64Encode(clientId + ":" + clientPassword));
+                request.Content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("Grant_type", "password"),
+                    new KeyValuePair<string, string>("Username", username),
+                    new KeyValuePair<string, string>("Password", password),
+                    new KeyValuePair<string, string>("Scope", "api"),
+                });
 
-                return JsonConvert.DeserializeObject<TokenResponse>(response.ContentString);
+                using (var response = client.Send(request))
+                using (var reader = new StreamReader(response.Content.ReadAsStream()))
+                {
+                    var content = reader.ReadToEnd();
+
+                    if (!response.IsSuccessStatusCode)
+                        throw new Exception(string.Format("Error getting token: {0} {1}", (int)response.StatusCode, content));
+
+                    return JsonConvert.DeserializeObject<TokenResponse>(content);
+                }
             }
-        }
-
-        public static HttpsClientRequest BuildRequest(string url, string username, string password, string clientId, string clientPassword)
-        {
-            var auth = Base64Encode(clientId + ":" + clientPassword);
-            var authHeader = new HttpsHeader("Authorization", "Basic " + auth);
-            var contentHeader = new HttpsHeader("Content-Type", "application/x-www-form-urlencoded");
-
-            var request = new HttpsClientRequest
-            {
-                RequestType = RequestType.Post,
-                ContentString = string.Format("Grant_type=password&Username={0}&Password={1}&Scope=api", username, password),
-            };
-
-            request.Url.Parse(url);
-            request.Header.AddHeader(authHeader);
-            request.Header.AddHeader(contentHeader);
-            return request;
         }
 
         public static string Base64Encode(string plainText)

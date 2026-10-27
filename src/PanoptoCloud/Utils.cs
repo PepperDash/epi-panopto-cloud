@@ -1,22 +1,11 @@
 using System;
 using System.Text;
 using Crestron.SimplSharp;
-using Crestron.SimplSharp.Net.Https;
 
 namespace PepperDash.Essentials.Plugins
 {
     public static class Utils
     {
-        public static HttpsClient WithDefaultSettings(this HttpsClient client)
-        {
-            client.IncludeHeaders = false;
-            client.KeepAlive = false;
-            client.HostVerification = false;
-            client.PeerVerification = false;
-
-            return client;
-        }
-
         public static string CurrentRecordingLength(this Guid currentRecordingId, DateTime startTime, DateTime endTime)
         {
             return currentRecordingId == Guid.Empty
