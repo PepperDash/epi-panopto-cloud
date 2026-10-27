@@ -12,18 +12,20 @@ using PepperDash.Core.Logging;
 namespace PepperDash.Essentials.Plugins
 {
     /// <summary>
-    /// Finds the session a remote recorder is recording, through Panopto's SOAP API.
+    /// Reads a remote recorder's schedule through Panopto's SOAP API.
     /// </summary>
     /// <remarks>
-    /// <para>The REST API this plugin otherwise uses cannot answer "what is this recorder recording
-    /// now": its remote-recorder endpoints are for Panopto's hardware partners only. So a recording
-    /// this device did not start itself — a class booked in Panopto, or one already running when
-    /// the program restarted — left it with no session id, and with no title, end time, Stop or
-    /// Extend. The SOAP API lists a recorder's scheduled sessions, and their states, to an ordinary
-    /// account; Panopto's own developers point to it as the way to do this.</para>
-    /// <para>Read-only. The id it finds is the one the REST <c>scheduledRecordings</c> endpoint
-    /// takes, so everything after finding it is the path a recording started here already uses.
-    /// Verified against upenn.hosted.panopto.com.</para>
+    /// <para>The REST API this plugin otherwise uses cannot answer "what is this recorder recording,
+    /// or about to": its remote-recorder endpoints are for Panopto's hardware partners only. The
+    /// SOAP API lists a recorder's scheduled sessions, with their states, to an ordinary account;
+    /// Panopto's own developers point to it as the way to do this.</para>
+    /// <para>That one read answers three things this device needs: which session is being recorded
+    /// when this device did not start it, which is due and waiting for the recorder, and what is
+    /// booked next.</para>
+    /// <para>Read-only. The ids it returns are the ones the REST <c>scheduledRecordings</c>
+    /// endpoint takes, so everything after is the path a recording started here already uses.
+    /// Verified against upenn.hosted.panopto.com: an ad-hoc session is listed as Scheduled within
+    /// seconds of being created and stays Scheduled until the recorder begins it.</para>
     /// <para>Hand-written XML over the plugin's <see cref="HttpClient"/> rather than a generated
     /// WCF client: two calls do not justify the dependency.</para>
     /// </remarks>
@@ -48,29 +50,51 @@ namespace PepperDash.Essentials.Plugins
         }
 
         /// <summary>
-        /// The session the recorder is recording now, or null if there is none or it could not be
-        /// asked.
+        /// Every session scheduled on the recorder, including one being recorded now. Empty when
+        /// nothing is; null when the server could not be asked.
         /// </summary>
-        /// <remarks>
-        /// Chosen by the session's own state rather than by its times: a session reads
-        /// <c>Recording</c> (or <c>Broadcasting</c>) while it is being captured, so there is no
-        /// guessing at the edges of a booking. Times are the fallback for a server that answers
-        /// otherwise.
-        /// </remarks>
-        public FoundSession FindCurrentSession(Guid recorderId)
+        public List<FoundSession> GetSchedule(Guid recorderId)
         {
             var ids = GetScheduledRecordings(recorderId);
-            if (ids == null || ids.Count == 0)
+            if (ids == null)
                 return null;
 
-            var sessions = GetSessions(ids);
-            if (sessions == null || sessions.Count == 0)
-                return null;
+            if (ids.Count == 0)
+                return new List<FoundSession>();
 
-            var now = DateTime.UtcNow;
+            return GetSessions(ids);
+        }
 
-            return sessions.FirstOrDefault(s => s.State == "Recording" || s.State == "Broadcasting")
-                   ?? sessions.FirstOrDefault(s => s.StartTime <= now && now < s.EndTime);
+        /// <summary>
+        /// The session being recorded, chosen by its own state rather than its times — a session
+        /// reads <c>Recording</c> (or <c>Broadcasting</c>) while it is captured, so there is no
+        /// guessing at the edges of a booking. Times are the fallback for a server that answers
+        /// otherwise.
+        /// </summary>
+        public static FoundSession CurrentOf(IEnumerable<FoundSession> schedule, DateTime utcNow)
+        {
+            var sessions = schedule.ToList();
+
+            return sessions.FirstOrDefault(s => s.IsCapturing)
+                   ?? sessions.FirstOrDefault(s => s.StartTime <= utcNow && utcNow < s.EndTime);
+        }
+
+        /// <summary>The session whose start has come and that the recorder has not begun.</summary>
+        public static FoundSession DueOf(IEnumerable<FoundSession> schedule, DateTime utcNow)
+        {
+            return schedule
+                .Where(s => s.State == "Scheduled" && s.StartTime <= utcNow && utcNow < s.EndTime)
+                .OrderBy(s => s.StartTime)
+                .FirstOrDefault();
+        }
+
+        /// <summary>The soonest session that has not started yet.</summary>
+        public static FoundSession NextOf(IEnumerable<FoundSession> schedule, DateTime utcNow)
+        {
+            return schedule
+                .Where(s => s.State == "Scheduled" && s.StartTime > utcNow)
+                .OrderBy(s => s.StartTime)
+                .FirstOrDefault();
         }
 
         private List<Guid> GetScheduledRecordings(Guid recorderId)
@@ -112,8 +136,8 @@ namespace PepperDash.Essentials.Plugins
 
                 DateTime start;
                 double duration;
-                var hasStart = DateTime.TryParse(Child(element, "StartTime"), null,
-                    System.Globalization.DateTimeStyles.AdjustToUniversal, out start);
+                var hasStart = DateTime.TryParse(Child(element, "StartTime"), System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out start);
                 double.TryParse(Child(element, "Duration"), System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out duration);
 
@@ -185,6 +209,11 @@ namespace PepperDash.Essentials.Plugins
             public string State { get; set; }
             public DateTime StartTime { get; set; }
             public DateTime EndTime { get; set; }
+
+            public bool IsCapturing
+            {
+                get { return State == "Recording" || State == "Broadcasting"; }
+            }
         }
     }
 }

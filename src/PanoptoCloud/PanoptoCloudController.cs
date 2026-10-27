@@ -19,7 +19,7 @@ using PepperDash.Essentials.Core.Devices;
 namespace PepperDash.Essentials.Plugins
 {
     public class PanoptoCloudController : ReconfigurableBridgableDevice, ICommunicationMonitor,
-        IHasRecordingControl, IHasRecordingInfo, IHasPolling
+        IHasRecordingControl, IHasRecordingInfo, IHasRecordingSchedule, IHasPolling
     {
         /// <summary>How long to wait for Panopto. It is a cloud service, so this is more forgiving
         /// than a device on the LAN — but finite, where the Crestron client waited a minute.</summary>
@@ -57,12 +57,36 @@ namespace PepperDash.Essentials.Plugins
         private volatile string _token;
         private RecoderInfo _recorder = new RecoderInfo();
 
-        /// <summary>How often to look for a session this device did not start. See
-        /// <see cref="FollowCurrentSessionIfUnknown"/>.</summary>
+        /// <summary>How often to read the recorder's schedule — for what is booked next, and for a
+        /// session that comes due. See <see cref="ReadScheduleIfDue"/>.</summary>
+        private static readonly TimeSpan ScheduleInterval = TimeSpan.FromSeconds(60);
+
+        /// <summary>How often to read it instead while the recorder is recording a session this
+        /// device does not know, which leaves the panel without a title, Stop or Extend.</summary>
         private static readonly TimeSpan SessionLookupInterval = TimeSpan.FromSeconds(30);
 
+        /// <summary>
+        /// How long a session may wait for the recorder before it stops counting as starting.
+        /// </summary>
+        /// <remarks>
+        /// An ad-hoc start measured ~35s here, nearly all of it the Pearl picking up the new
+        /// booking. Well past that, the recorder is not slow but not coming, and saying "starting"
+        /// any longer would be untrue.
+        /// </remarks>
+        private static readonly TimeSpan StartingTimeout = TimeSpan.FromMinutes(5);
+
         private readonly PanoptoSessionFinder _sessionFinder;
-        private DateTime _lastSessionLookup = DateTime.MinValue;
+        private DateTime _lastScheduleRead = DateTime.MinValue;
+        private volatile List<PanoptoSessionFinder.FoundSession> _schedule = new List<PanoptoSessionFinder.FoundSession>();
+
+        /// <summary>True once the recorder has been seen capturing the current session, after which
+        /// it is never "starting" again — a session stopped early has started.</summary>
+        private bool _currentSessionHasStarted;
+
+        /// <summary>What <see cref="PublishChanges"/> last announced.</summary>
+        private string _lastPublishedState;
+        private string _lastPublishedNext;
+        private readonly object _publishLock = new object();
 
         /// <summary>1 while the recorder or the current recording is being read. See
         /// <see cref="PollRecorder"/>.</summary>
@@ -246,9 +270,6 @@ namespace PepperDash.Essentials.Plugins
                 IsRecording.FireUpdate();
                 IsPaused.FireUpdate();
                 RecorderStatusString.FireUpdate();
-
-                // RecorderStatusInt is the recorder own state, which is what RecordingState reads.
-                RaiseRecordingStateChanged();
             };
 
             CurrentRecordingEndTime.OutputChange += (sender, args) =>
@@ -343,6 +364,7 @@ namespace PepperDash.Essentials.Plugins
                     this.LogWarning("Panopto is offline; clearing the recorder's last state");
                     _recorder = new RecoderInfo();
                     RecorderStatusInt.FireUpdate();
+                    PublishChanges();
                     break;
             }
         }
@@ -514,41 +536,88 @@ namespace PepperDash.Essentials.Plugins
 
             this.LogVerbose("Recorder Status:\r{0}", JsonConvert.SerializeObject(_recorder, Formatting.Indented));
 
-            FollowCurrentSessionIfUnknown();
+            if (RecorderIsCapturing && _currentRecordingId != Guid.Empty)
+                _currentSessionHasStarted = true;
+
+            ReadScheduleIfDue();
+            AdoptSessionIfUnknown();
+            PublishChanges();
 
             return !_recorder.Id.Equals(Guid.Empty);
         }
 
+        private bool RecorderIsCapturing
+        {
+            get
+            {
+                return _recorder.State == RemoteRecorderState.Recording ||
+                       _recorder.State == RemoteRecorderState.Paused;
+            }
+        }
+
         /// <summary>
-        /// Find the session the recorder is recording when this device did not start it.
+        /// Read the recorder's schedule every <see cref="ScheduleInterval"/>, or every
+        /// <see cref="SessionLookupInterval"/> while it is recording a session this device does
+        /// not know. A failed read keeps the last one.
+        /// </summary>
+        private void ReadScheduleIfDue()
+        {
+            if (_recorder.Id.Equals(Guid.Empty))
+                return;
+
+            var interval = RecorderIsCapturing && _currentRecordingId == Guid.Empty
+                ? SessionLookupInterval
+                : ScheduleInterval;
+
+            if (DateTime.UtcNow - _lastScheduleRead < interval)
+                return;
+
+            _lastScheduleRead = DateTime.UtcNow;
+
+            var schedule = _sessionFinder.GetSchedule(_recorder.Id);
+
+            if (schedule == null)
+            {
+                this.LogDebug("Unable to read the recorder's schedule; keeping the last one read");
+                return;
+            }
+
+            this.LogVerbose("Recorder schedule: {0}", String.Join("; ",
+                schedule.Select(s => String.Format("{0} {1} {2:u}", s.Name, s.State, s.StartTime))));
+
+            _schedule = schedule;
+        }
+
+        /// <summary>
+        /// Take up the session the recorder is on, or is about to be on, when this device did not
+        /// start it.
         /// </summary>
         /// <remarks>
         /// <para>The current session used to be known only from the reply to this device's own
         /// start. A class booked in Panopto starts itself, and a program restart forgets the id, so
         /// in both cases the recorder reported Recording while title, end time, Stop and Extend had
-        /// nothing to work with — Stop logged "current recording id is not set" and did nothing.</para>
-        /// <para>Only while the recorder says it is recording and the session is unknown, and no
-        /// more than every <see cref="SessionLookupInterval"/>: a recording this device started
-        /// already has its id, and an idle recorder has nothing to find.</para>
+        /// nothing to work with — Stop logged "current recording id is not set" and did
+        /// nothing.</para>
+        /// <para>While recording, that is the session the schedule says is being captured. While
+        /// not, it is a booked session whose start has come — so the panel can say it is
+        /// starting and name it, and Stop cancels it.</para>
         /// </remarks>
-        private void FollowCurrentSessionIfUnknown()
+        private void AdoptSessionIfUnknown()
         {
-            var recording = _recorder.State == RemoteRecorderState.Recording ||
-                            _recorder.State == RemoteRecorderState.Paused;
-
-            if (!recording || _currentRecordingId != Guid.Empty)
+            if (_currentRecordingId != Guid.Empty)
                 return;
 
-            if (DateTime.UtcNow - _lastSessionLookup < SessionLookupInterval)
-                return;
+            var now = DateTime.UtcNow;
+            var schedule = _schedule;
 
-            _lastSessionLookup = DateTime.UtcNow;
-
-            var session = _sessionFinder.FindCurrentSession(_recorder.Id);
+            var session = RecorderIsCapturing
+                ? PanoptoSessionFinder.CurrentOf(schedule, now)
+                : PanoptoSessionFinder.DueOf(schedule, now);
 
             if (session == null)
             {
-                this.LogDebug("Recorder is recording, but its schedule has no current session");
+                if (RecorderIsCapturing)
+                    this.LogDebug("Recorder is recording, but its schedule has no current session");
                 return;
             }
 
@@ -557,7 +626,73 @@ namespace PepperDash.Essentials.Plugins
             // From here it is the path a recording started on this device takes: read the
             // session for its title and end time, and Stop and Extend address it by this id.
             _currentRecordingId = session.Id;
+            _currentRecordingName = session.Name;
+            _currentRecordingStartTime = session.StartTime;
+            _currentRecordingEndTime = session.EndTime;
+            _currentSessionHasStarted = RecorderIsCapturing;
             PollCurrentRecording();
+        }
+
+        /// <summary>
+        /// A session is due and the recorder has not begun it.
+        /// </summary>
+        /// <remarks>
+        /// Covers both ways a session comes due: this device's own start, whose reply carries the
+        /// session at once, and a booking adopted when its time comes. Measured on a Pearl, an
+        /// ad-hoc start spends ~35s here and a booked one ~5s.
+        /// </remarks>
+        private bool IsStarting
+        {
+            get
+            {
+                if (_currentRecordingId == Guid.Empty || _currentSessionHasStarted || RecorderIsCapturing)
+                    return false;
+
+                var now = DateTime.UtcNow;
+                var start = _currentRecordingStartTime.ToUniversalTime();
+
+                return start <= now && now < _currentRecordingEndTime.ToUniversalTime() &&
+                       now - start < StartingTimeout;
+            }
+        }
+
+        /// <summary>
+        /// Raise <see cref="RecordingStateChanged"/> and <see cref="NextRecordingChanged"/>, each
+        /// only if what it describes is different from the last time.
+        /// </summary>
+        /// <remarks>
+        /// One place, because three things move them: the recorder, the session, and the clock — a
+        /// booking comes due without anything being read.
+        /// </remarks>
+        private void PublishChanges()
+        {
+            bool stateChanged;
+            bool nextChanged;
+            eRecordingState state;
+
+            lock (_publishLock)
+            {
+                state = RecordingState;
+
+                var stateSignature = String.Join("|", state, RecordingTitle, _currentRecordingId, _currentRecordingEndTime.Ticks);
+
+                var next = NextRecording;
+                var nextSignature = next == null
+                    ? String.Empty
+                    : String.Join("|", next.Name, next.StartTime.Ticks, next.EndTime.Ticks);
+
+                stateChanged = stateSignature != _lastPublishedState;
+                nextChanged = nextSignature != _lastPublishedNext;
+
+                if (stateChanged && (_lastPublishedState == null || !_lastPublishedState.StartsWith(state + "|")))
+                    this.LogInformation("Recording state: {0}", state);
+
+                _lastPublishedState = stateSignature;
+                _lastPublishedNext = nextSignature;
+            }
+
+            if (stateChanged) Raise(RecordingStateChanged, "RecordingStateChanged");
+            if (nextChanged) Raise(NextRecordingChanged, "NextRecordingChanged");
         }
 
         #region IHasRecordingControl / IHasRecordingInfo / IHasPolling
@@ -592,7 +727,7 @@ namespace PepperDash.Essentials.Plugins
                         return eRecordingState.Paused;
                     case RemoteRecorderState.Stopped:
                     case RemoteRecorderState.Previewing:
-                        return eRecordingState.Idle;
+                        return IsStarting ? eRecordingState.Starting : eRecordingState.Idle;
                     default:
                         return eRecordingState.Offline;
                 }
@@ -637,9 +772,34 @@ namespace PepperDash.Essentials.Plugins
 
         #endregion
 
-        private void RaiseRecordingStateChanged()
+        /// <inheritdoc />
+        /// <remarks>
+        /// From the recorder's schedule in Panopto, so it needs no hardware recorder that keeps a
+        /// schedule of its own. Times are local, as the room displays them.
+        /// </remarks>
+        public RecordingScheduleEntry NextRecording
         {
-            var handler = RecordingStateChanged;
+            get
+            {
+                var next = PanoptoSessionFinder.NextOf(_schedule, DateTime.UtcNow);
+
+                if (next == null)
+                    return null;
+
+                return new RecordingScheduleEntry
+                {
+                    Name = next.Name,
+                    StartTime = next.StartTime.ToLocalTime(),
+                    EndTime = next.EndTime.ToLocalTime(),
+                };
+            }
+        }
+
+        /// <inheritdoc />
+        public event EventHandler NextRecordingChanged;
+
+        private void Raise(EventHandler handler, string name)
+        {
             if (handler == null)
                 return;
 
@@ -650,7 +810,7 @@ namespace PepperDash.Essentials.Plugins
             catch (Exception ex)
             {
                 // A subscriber throwing must not stop the poll that raised this.
-                this.LogError(ex, "Error raising RecordingStateChanged");
+                this.LogError(ex, "Error raising {0}", name);
             }
         }
 
@@ -825,8 +985,6 @@ namespace PepperDash.Essentials.Plugins
 
         public void ProcessCurrentRecording(PanoptoResponse response)
         {
-            var before = RecordingInfoSignature();
-
             if (response == null)
             {
                 // Nothing came back. Try again shortly, as for any other failure.
@@ -856,6 +1014,10 @@ namespace PepperDash.Essentials.Plugins
                 }
                 else
                 {
+                    // A different session — this device's own start — has not been seen capturing.
+                    if (currentRecording.Id != _currentRecordingId)
+                        _currentSessionHasStarted = RecorderIsCapturing;
+
                     _currentRecordingId = currentRecording.Id;
                     _currentRecordingName = currentRecording.Name;
                     _currentRecordingStartTime = currentRecording.StartTime;
@@ -869,21 +1031,15 @@ namespace PepperDash.Essentials.Plugins
             CurrentRecordingName.FireUpdate();
             CurrentRecordingId.FireUpdate();
 
-            if (RecordingInfoSignature() != before)
-                RaiseRecordingStateChanged();
+            PublishChanges();
         }
 
         private void ClearCurrentRecording()
         {
             _currentRecordingId = Guid.Empty;
             _currentRecordingName = String.Empty;
+            _currentSessionHasStarted = false;
             _recordingTimer.Stop();
-        }
-
-        /// <summary>What <see cref="IHasRecordingInfo"/> reports, as one value to compare.</summary>
-        private string RecordingInfoSignature()
-        {
-            return String.Join("|", _currentRecordingId, _currentRecordingName, _currentRecordingEndTime.Ticks);
         }
 
         /// <summary>
