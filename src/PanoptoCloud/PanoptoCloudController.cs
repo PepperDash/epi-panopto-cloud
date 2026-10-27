@@ -57,6 +57,13 @@ namespace PepperDash.Essentials.Plugins
         private volatile string _token;
         private RecoderInfo _recorder = new RecoderInfo();
 
+        /// <summary>How often to look for a session this device did not start. See
+        /// <see cref="FollowCurrentSessionIfUnknown"/>.</summary>
+        private static readonly TimeSpan SessionLookupInterval = TimeSpan.FromSeconds(30);
+
+        private readonly PanoptoSessionFinder _sessionFinder;
+        private DateTime _lastSessionLookup = DateTime.MinValue;
+
         /// <summary>1 while the recorder or the current recording is being read. See
         /// <see cref="PollRecorder"/>.</summary>
         private int _pollingRecorder;
@@ -228,6 +235,8 @@ namespace PepperDash.Essentials.Plugins
             };
 
             _http = new HttpClient(handler) { Timeout = RequestTimeout };
+
+            _sessionFinder = new PanoptoSessionFinder(this, _http, _url, _username, _password);
         }
 
         protected override bool CustomActivate()
@@ -505,7 +514,50 @@ namespace PepperDash.Essentials.Plugins
 
             this.LogVerbose("Recorder Status:\r{0}", JsonConvert.SerializeObject(_recorder, Formatting.Indented));
 
+            FollowCurrentSessionIfUnknown();
+
             return !_recorder.Id.Equals(Guid.Empty);
+        }
+
+        /// <summary>
+        /// Find the session the recorder is recording when this device did not start it.
+        /// </summary>
+        /// <remarks>
+        /// <para>The current session used to be known only from the reply to this device's own
+        /// start. A class booked in Panopto starts itself, and a program restart forgets the id, so
+        /// in both cases the recorder reported Recording while title, end time, Stop and Extend had
+        /// nothing to work with — Stop logged "current recording id is not set" and did nothing.</para>
+        /// <para>Only while the recorder says it is recording and the session is unknown, and no
+        /// more than every <see cref="SessionLookupInterval"/>: a recording this device started
+        /// already has its id, and an idle recorder has nothing to find.</para>
+        /// </remarks>
+        private void FollowCurrentSessionIfUnknown()
+        {
+            var recording = _recorder.State == RemoteRecorderState.Recording ||
+                            _recorder.State == RemoteRecorderState.Paused;
+
+            if (!recording || _currentRecordingId != Guid.Empty)
+                return;
+
+            if (DateTime.UtcNow - _lastSessionLookup < SessionLookupInterval)
+                return;
+
+            _lastSessionLookup = DateTime.UtcNow;
+
+            var session = _sessionFinder.FindCurrentSession(_recorder.Id);
+
+            if (session == null)
+            {
+                this.LogDebug("Recorder is recording, but its schedule has no current session");
+                return;
+            }
+
+            this.LogInformation("Following session {0} \"{1}\", found in the recorder's schedule", session.Id, session.Name);
+
+            // From here it is the path a recording started on this device takes: read the
+            // session for its title and end time, and Stop and Extend address it by this id.
+            _currentRecordingId = session.Id;
+            PollCurrentRecording();
         }
 
         #region IHasRecordingControl / IHasRecordingInfo / IHasPolling
