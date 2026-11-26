@@ -359,3 +359,8 @@ MigrationBackup/
 
 # VS Code settings folders
 .vscode/
+
+# Local plugin builds. The release workflow attaches everything in output/,
+# so a committed package ends up in every release.
+output/
+*.cplz
